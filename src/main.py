@@ -11,6 +11,8 @@ import os
 import configparser
 from loguru import logger
 import json
+import pymysql
+from elasticsearch import Elasticsearch
 
 from pymysqlreplication import BinLogStreamReader
 from pymysqlreplication.row_event import (
@@ -19,8 +21,7 @@ from pymysqlreplication.row_event import (
     WriteRowsEvent,
 )
 
-from supplier_info import SupplierProcessor
-from supplier_cust import CustProcessor
+from event_processor import EventProcessor
 
 # 数据库连接定义
 config = configparser.ConfigParser()
@@ -37,12 +38,11 @@ src_password = config.get("source", "password")
 src_port = int(config.get("source", "port"))
 src_charset = config.get("source", "charset")
 
+# 目标ElasticSearch配置
 tar_host = config.get("target", "host")
 tar_port = int(config.get("target", "port"))
-tar_database = config.get("target", "database")
 tar_user = config.get("target", "user")
 tar_password = config.get("target", "password")
-tar_charset = config.get("target", "charset")
 
 # 日志配置
 logDir = os.path.expanduser("../log/")
@@ -70,13 +70,11 @@ SRC_MYSQL_SETTINGS = {
     "charset": src_charset,
 }
 
-TAR_MYSQL_SETTINGS = {
-    "host": tar_host,
-    "port": tar_port,
-    "database": tar_database,
-    "user": tar_user,
-    "passwd": tar_password,
-    "charset": tar_charset,
+# ElasticSearch连接配置
+ES_SETTINGS = {
+    "hosts": [f"http://{tar_host}:{tar_port}"],
+    "http_auth": (tar_user, tar_password) if tar_user and tar_password else None,
+    "timeout": 30
 }
 
 
@@ -101,7 +99,7 @@ def dict_to_str(value):
 def dict_to_json(res_value):
     json_record = {}
     for key, value in res_value.items():
-        if key not in ['schema', 'table', 'action']:
+        if key not in ['schema', 'action']:
             json_record[key] = dict_to_str(value)
     return json.dumps(json_record, ensure_ascii=False, indent=4)
 
@@ -112,40 +110,44 @@ def main():
         server_id=3,
         blocking=True,  # 持续监听
         only_events=[DeleteRowsEvent, WriteRowsEvent, UpdateRowsEvent],  # 指定只监听某些事件
-        only_schemas=src_database,  # 指定只监听某些库（但binlog还是要读取全部滴）
+        only_schemas=src_database,  # 指定只监听某些库（但binlog还是要读取全部）
         only_tables=src_tables,  # 指定监听某些表
     )
 
-    with SupplierProcessor(TAR_MYSQL_SETTINGS) as supplier_handler, CustProcessor(TAR_MYSQL_SETTINGS) as cust_handler:
+    # 创建ElasticSearch连接
+    es_client = Elasticsearch(**ES_SETTINGS)
+    
+    # 创建统一的事件处理器
+    processor = EventProcessor(es_client)
+    # 使用上下文管理器
+    with processor:
         for binlog_event in stream:
             for row in binlog_event.rows:
                 event = {"schema": binlog_event.schema, "table": binlog_event.table}
-
+                
+                # 确定事件类型和数据
                 if isinstance(binlog_event, WriteRowsEvent):
-                    event["action"] = "replace"
+                    event["action"] = "insert"
                     event.update(row["values"])
                 elif isinstance(binlog_event, UpdateRowsEvent):
-                    event["action"] = "replace"
+                    event["action"] = "update"
                     event.update(row["after_values"])
                 elif isinstance(binlog_event, DeleteRowsEvent):
                     event["action"] = "delete"
                     event.update(row["values"])
-
+                
+                # 转换为JSON数据
                 json_data = json.loads(dict_to_json(event))
-                if binlog_event.table == "supplier_info":
-                    supplier_handler.handle_event(
-                        action=event["action"],
-                        data=json_data
-                    )
-                elif binlog_event.table == "supplier_cust":
-                    cust_handler.handle_event(
-                        action=event["action"],
-                        data=json_data
-                    )
-
+                print('json_data: ',json_data)
+                # 使用处理器处理事件
+                processor.handle_event(
+                    action=event["action"],
+                    data=json_data
+                )
+    
     sys.stdout.flush()
-
     stream.close()
+    es_client.close()
 
 
 if __name__ == "__main__":
