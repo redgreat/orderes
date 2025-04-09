@@ -14,6 +14,8 @@ import json
 import pymysql
 from elasticsearch import Elasticsearch
 
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from pymysqlreplication import BinLogStreamReader
 from pymysqlreplication.row_event import (
     DeleteRowsEvent,
@@ -45,9 +47,9 @@ tar_user = config.get("target", "user")
 tar_password = config.get("target", "password")
 
 # 日志配置
-logDir = os.path.expanduser("../log/")
+logDir = os.path.join(project_root, "log")
 if not os.path.exists(logDir):
-    os.mkdir(logDir)
+    os.makedirs(logDir, exist_ok=True)
 logFile = os.path.join(logDir, "repl.log")
 # logger.remove(handler_id=None)
 
@@ -138,7 +140,6 @@ def main():
                 
                 # 转换为JSON数据
                 json_data = json.loads(dict_to_json(event))
-                print('json_data: ',json_data)
                 # 使用处理器处理事件
                 processor.handle_event(
                     action=event["action"],

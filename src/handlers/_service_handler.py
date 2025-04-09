@@ -6,9 +6,9 @@
 from elasticsearch import Elasticsearch
 from loguru import logger
 from typing import Dict, Any
-from ..event_processor import EventProcessor, index_name
+from src.base_processor import BaseProcessor, index_name
 
-class ServiceHandler(EventProcessor):
+class ServiceHandler(BaseProcessor):
     """处理tb_workserviceinfo表的事件"""
     def handle(self, action: str, data: Dict) -> bool:
         doc_id = str(data.get('WorkOrderId'))

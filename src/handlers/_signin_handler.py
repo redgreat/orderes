@@ -6,9 +6,9 @@
 from elasticsearch import Elasticsearch
 from loguru import logger
 from typing import Dict, Any
-from ..event_processor import EventProcessor, index_name
+from src.base_processor import BaseProcessor, index_name
 
-class SigninHandler(EventProcessor):
+class SigninHandler(BaseProcessor):
     """处理tb_signin表的事件，存入SigninInfo嵌套字段"""
     def handle(self, action: str, data: Dict) -> bool:
         doc_id = str(data.get('WorkOrderId'))

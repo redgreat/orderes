@@ -1,25 +1,26 @@
 #!/usr/bin/env python3
 # -*- coding:utf-8 -*-
 # @author by wangcw @ 2025
-# comment: 配置信息处理器
+# comment: 预约联系人处理器
 
 from elasticsearch import Elasticsearch
 from loguru import logger
 from typing import Dict, Any
 from src.base_processor import BaseProcessor, index_name
 
-class ConfigHandler(BaseProcessor):
-    """处理tb_config表的事件，存入ConfigInfo嵌套字段"""
+class AppointmentConcatHandler(BaseProcessor):
+    """处理tb_appointmentconcat表的事件"""
     def handle(self, action: str, data: Dict) -> bool:
-        doc_id = str(data.get('WorkOrderId'))
-        config_data = {
+        doc_id = str(data.get('AppointmentId'))
+        
+        concat_data = {
             'Id': str(data.get('Id')),
-            'WorkOrderId': doc_id,
-            'ConfigType': data.get('ConfigType'),
-            'ConfigValue': data.get('ConfigValue'),
-            'ConfigRemark': data.get('ConfigRemark'),
-            'CreatedById': data.get('CreatedById'),
+            'AppointmentId': doc_id,
+            'LinkMan': data.get('LinkMan'),
+            'LinkTel': data.get('LinkTel'),
+            'LinkAddress': data.get('LinkAddress'),
             'CreatedAt': data.get('CreatedAt'),
+            'CreatedById': data.get('CreatedById'),
             'UpdatedById': data.get('UpdatedById'),
             'UpdatedAt': data.get('UpdatedAt'),
             'DeletedById': data.get('DeletedById'),
@@ -29,30 +30,30 @@ class ConfigHandler(BaseProcessor):
         
         if action == "insert":
             doc_body = {
-                'ConfigInfo': [config_data]
+                'ConcatInfo': [concat_data]
             }
             return self._execute_es("index", doc_id, doc_body)
         elif action == "update":
             script = {
                 "source": """
-                    if (ctx._source.ConfigInfo == null) {
-                        ctx._source.ConfigInfo = new ArrayList();
+                    if (ctx._source.ConcatInfo == null) {
+                        ctx._source.ConcatInfo = new ArrayList();
                     }
                     def found = false;
-                    for (int i=0; i<ctx._source.ConfigInfo.size(); i++) {
-                        if (ctx._source.ConfigInfo[i].Id == params.config.Id) {
-                            ctx._source.ConfigInfo.set(i, params.config);
+                    for (int i=0; i<ctx._source.ConcatInfo.size(); i++) {
+                        if (ctx._source.ConcatInfo[i].Id == params.concat.Id) {
+                            ctx._source.ConcatInfo.set(i, params.concat);
                             found = true;
                             break;
                         }
                     }
                     if (!found) {
-                        ctx._source.ConfigInfo.add(params.config);
+                        ctx._source.ConcatInfo.add(params.concat);
                     }
                 """,
                 "lang": "painless",
                 "params": {
-                    "config": config_data
+                    "concat": concat_data
                 }
             }
             try:
@@ -61,18 +62,18 @@ class ConfigHandler(BaseProcessor):
                     id=doc_id,
                     body={"script": script}
                 )
-                logger.success(f"ES更新ConfigInfo成功: 索引={index_name}, ID={doc_id}, ConfigID={config_data['Id']}")
+                logger.success(f"ES更新ConcatInfo成功: 索引={index_name}, ID={doc_id}, ConcatID={concat_data['Id']}")
                 return True
             except Exception as e:
-                logger.error(f"ES更新ConfigInfo失败: 索引={index_name}, ID={doc_id}, {str(e)}")
+                logger.error(f"ES更新ConcatInfo失败: 索引={index_name}, ID={doc_id}, {str(e)}")
                 return False
         elif action == "delete":
             script = {
                 "source": """
-                    if (ctx._source.ConfigInfo != null) {
-                        def iterator = ctx._source.ConfigInfo.iterator();
+                    if (ctx._source.ConcatInfo != null) {
+                        def iterator = ctx._source.ConcatInfo.iterator();
                         while (iterator.hasNext()) {
-                            if (iterator.next().Id == params.configId) {
+                            if (iterator.next().Id == params.concatId) {
                                 iterator.remove();
                             }
                         }
@@ -80,7 +81,7 @@ class ConfigHandler(BaseProcessor):
                 """,
                 "lang": "painless",
                 "params": {
-                    "configId": str(data.get('Id'))
+                    "concatId": str(data.get('Id'))
                 }
             }
             try:
@@ -89,10 +90,10 @@ class ConfigHandler(BaseProcessor):
                     id=doc_id,
                     body={"script": script}
                 )
-                logger.success(f"ES删除ConfigInfo成功: 索引={index_name}, ID={doc_id}, ConfigID={str(data.get('Id'))}")
+                logger.success(f"ES删除ConcatInfo成功: 索引={index_name}, ID={doc_id}, ConcatID={str(data.get('Id'))}")
                 return True
             except Exception as e:
-                logger.error(f"ES删除ConfigInfo失败: 索引={index_name}, ID={doc_id}, {str(e)}")
+                logger.error(f"ES删除ConcatInfo失败: 索引={index_name}, ID={doc_id}, {str(e)}")
                 return False
         else:
             logger.warning(f"未定义的操作类型: {action}")
