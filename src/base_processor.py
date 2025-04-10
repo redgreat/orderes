@@ -6,9 +6,15 @@
 from elasticsearch import Elasticsearch
 from loguru import logger
 from typing import Dict, Any
+import os
+import configparser
 
-# 定义ES索引名称
-index_name = "orderpy"
+config = configparser.ConfigParser()
+current_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.dirname(current_dir)
+config_path = os.path.join(project_root, "conf", "db.cnf")
+config.read(config_path)
+index_name = config.get("target", "index_name")
 
 class BaseProcessor:
     """事件处理器基类，提供基础的ES操作方法"""

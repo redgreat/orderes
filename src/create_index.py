@@ -21,6 +21,7 @@ tar_host = config.get("target", "host")
 tar_port = int(config.get("target", "port"))
 tar_user = config.get("target", "user")
 tar_password = config.get("target", "password")
+index_name = config.get("target", "index_name")
 
 # 日志配置
 logDir = os.path.expanduser("../log/")
@@ -50,7 +51,6 @@ ES_SETTINGS = {
 def create_order_index():
     """创建工单索引结构"""
     es = Elasticsearch(**ES_SETTINGS)
-    index_name = "orderpy"
     
     # 索引映射定义
     mapping = {

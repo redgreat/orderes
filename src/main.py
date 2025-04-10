@@ -46,6 +46,10 @@ tar_port = int(config.get("target", "port"))
 tar_user = config.get("target", "user")
 tar_password = config.get("target", "password")
 
+# binlog起始位点
+bin_log_file = config.get("binlog", "log_file")
+bin_log_pos = int(config.get("binlog", "log_pos"))
+
 # 日志配置
 logDir = os.path.join(project_root, "log")
 if not os.path.exists(logDir):
@@ -61,7 +65,7 @@ logger.add(
     format="{time:YYYY-MM-DD at HH:mm:ss} | {level} | {message}",
     backtrace=True,
     diagnose=True,
-    level="INFO",
+    level="ERROR",
 )
 
 SRC_MYSQL_SETTINGS = {
@@ -189,8 +193,8 @@ def main():
         only_events=[DeleteRowsEvent, WriteRowsEvent, UpdateRowsEvent],  # 指定只监听某些事件
         only_schemas=src_database,  # 指定只监听某些库（但binlog还是要读取全部）
         only_tables=src_tables,  # 指定监听某些表
-        log_file='mysql-bin.122238', # 指定起始binlog文件
-        log_pos=423530701  # 指定起始位点
+        log_file=bin_log_file,  # 指定起始binlog文件
+        log_pos=bin_log_pos  # 指定起始位点
     )
 
     # 创建ElasticSearch连接
@@ -217,9 +221,6 @@ def main():
                 
                 # 转换为JSON数据
                 json_data = json.loads(dict_to_json(event))
-                # if json_data.get('table')=='tb_workbussinessjsoninfo':
-                #     print('json_data: ', json_data)
-                #     print('event: ', event)
                 # 使用处理器处理事件
                 processor.handle_event(
                     action=event["action"],
