@@ -86,24 +86,99 @@ def dict_to_str(value):
     elif isinstance(value, decimal.Decimal):
         return str(value)
     elif isinstance(value, bytes):
-        return value.hex()
+        try:
+            return value.decode('utf-8')
+        except UnicodeDecodeError:
+            return value.hex()
     elif isinstance(value, str):
-        return value.strip("'")
+        value = value.strip("'")
+        try:
+            if value.startswith('{') and value.endswith('}'):
+                parsed_json = json.loads(value.replace("'", '"'))
+                if isinstance(parsed_json, dict):
+                    return {str(k): dict_to_str(v) for k, v in parsed_json.items()}
+                return parsed_json
+            elif value.startswith('[') and value.endswith(']'):
+                return json.loads(value.replace("'", '"'))
+        except json.JSONDecodeError:
+            pass
+        return value
     elif isinstance(value, int):
         return value
+    elif isinstance(value, dict):
+        return {str(k): dict_to_str(v) for k, v in value.items()}
+    elif isinstance(value, list):
+        return [dict_to_str(item) for item in value]
     elif value is None:
-        # return 'NULL'
         return None
     else:
         return f"'{value}'"
 
 
+def process_bu_json_field(value):
+    """专门处理Bu*Json字段，处理字节字符串表示法和Unicode编码"""
+    if isinstance(value, bytes):
+        try:
+            return value.decode('utf-8')
+        except UnicodeDecodeError:
+            return value.hex()
+    
+    if isinstance(value, str):
+        if value.startswith("b'") and value.endswith("'"):
+            value = value[2:-1]
+        try:
+            parsed_json = json.loads(value.replace("'", '"'))
+            if isinstance(parsed_json, dict):
+                string_keyed_dict = {}
+                for k, v in parsed_json.items():
+                    if isinstance(k, bytes):
+                        k = k.decode('utf-8') if isinstance(k, bytes) else str(k)
+                    string_keyed_dict[k] = v
+                return string_keyed_dict
+            return parsed_json
+        except json.JSONDecodeError:
+            try:
+                return value.encode('latin-1').decode('unicode_escape')
+            except (UnicodeDecodeError, UnicodeEncodeError):
+                pass
+    return value
+
 def dict_to_json(res_value):
     json_record = {}
     for key, value in res_value.items():
-        if key not in ['schema', 'action']:
-            json_record[key] = dict_to_str(value)
-    return json.dumps(json_record, ensure_ascii=False, indent=4)
+        str_key = key.decode('utf-8') if isinstance(key, bytes) else str(key)
+        if str_key not in ['schema', 'action']:
+            if str_key == 'BussinessJson' or str_key == 'ExtraJson':
+                processed_value = process_bu_json_field(value)
+                json_record[str_key] = processed_value
+            elif str_key.lower().endswith('json'):
+                if isinstance(value, str):
+                    try:
+                        parsed_json = json.loads(value.strip("'").replace("'", '"'))
+                        json_record[str_key] = parsed_json
+                        continue
+                    except json.JSONDecodeError:
+                        pass
+                json_record[str_key] = dict_to_str(value)
+            else:
+                json_record[str_key] = dict_to_str(value)
+    
+    def ensure_serializable(obj):
+        if isinstance(obj, dict):
+            return {(k.decode('utf-8') if isinstance(k, bytes) else str(k)): ensure_serializable(v) for k, v in obj.items()}
+        elif isinstance(obj, list):
+            return [ensure_serializable(item) for item in obj]
+        elif isinstance(obj, bytes):
+            try:
+                return obj.decode('utf-8')
+            except UnicodeDecodeError:
+                return obj.hex()
+        else:
+            return obj
+    
+    serializable_record = ensure_serializable(json_record)
+    
+    return json.dumps(serializable_record, ensure_ascii=False, indent=4)
 
 
 def main():
@@ -114,6 +189,8 @@ def main():
         only_events=[DeleteRowsEvent, WriteRowsEvent, UpdateRowsEvent],  # 指定只监听某些事件
         only_schemas=src_database,  # 指定只监听某些库（但binlog还是要读取全部）
         only_tables=src_tables,  # 指定监听某些表
+        log_file='mysql-bin.122238', # 指定起始binlog文件
+        log_pos=423530701  # 指定起始位点
     )
 
     # 创建ElasticSearch连接
@@ -140,6 +217,9 @@ def main():
                 
                 # 转换为JSON数据
                 json_data = json.loads(dict_to_json(event))
+                # if json_data.get('table')=='tb_workbussinessjsoninfo':
+                #     print('json_data: ', json_data)
+                #     print('event: ', event)
                 # 使用处理器处理事件
                 processor.handle_event(
                     action=event["action"],

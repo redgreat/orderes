@@ -16,14 +16,10 @@ class ColumnHandler(BaseProcessor):
         column_data = {
             'Id': str(data.get('Id')),
             'WorkOrderId': doc_id,
-            'ColumnName': data.get('ColumnName'),
-            'ColumnValue': data.get('ColumnValue'),
-            'CreatedAt': data.get('CreatedAt'),
-            'CreatedById': data.get('CreatedById'),
-            'UpdatedById': data.get('UpdatedById'),
-            'UpdatedAt': data.get('UpdatedAt'),
-            'DeletedById': data.get('DeletedById'),
-            'DeletedAt': data.get('DeletedAt'),
+            'TypeCode': data.get('TypeCode'),
+            'TypeName': data.get('TypeName'),
+            'Value': data.get('Value'),
+            'InsertTime': data.get('InsertTime'),
             'Deleted': data.get('Deleted')
         }
         
@@ -64,8 +60,15 @@ class ColumnHandler(BaseProcessor):
                 logger.success(f"ES更新ColumnInfo成功: 索引={index_name}, ID={doc_id}, ColumnID={column_data['Id']}")
                 return True
             except Exception as e:
-                logger.error(f"ES更新ColumnInfo失败: 索引={index_name}, ID={doc_id}, {str(e)}")
-                return False
+                if "document_missing_exception" in str(e) or "404" in str(e):
+                    logger.info(f"ES更新ColumnInfo时，原信息不存在，自动转为插入操作: 索引={index_name}, ID={doc_id}")
+                    doc_body = {
+                        'ColumnInfo': [column_data]
+                    }
+                    return self._execute_es("index", doc_id, doc_body)
+                else:
+                    logger.error(f"ES更新ColumnInfo失败: 索引={index_name}, ID={doc_id}, {str(e)}")
+                    return False
         elif action == "delete":
             script = {
                 "source": """
@@ -92,8 +95,12 @@ class ColumnHandler(BaseProcessor):
                 logger.success(f"ES删除ColumnInfo成功: 索引={index_name}, ID={doc_id}, ColumnID={str(data.get('Id'))}")
                 return True
             except Exception as e:
-                logger.error(f"ES删除ColumnInfo失败: 索引={index_name}, ID={doc_id}, {str(e)}")
-                return False
+                if "document_missing_exception" in str(e) or "404" in str(e):
+                    logger.info(f"ES删除ColumnInfo时文档不存在，视为成功: 索引={index_name}, ID={doc_id}, ColumnID={str(data.get('Id'))}")
+                    return True
+                else:
+                    logger.error(f"ES删除ColumnInfo失败: 索引={index_name}, ID={doc_id}, {str(e)}")
+                    return False
         else:
             logger.warning(f"未定义的操作类型: {action}")
             return False

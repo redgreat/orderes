@@ -16,23 +16,14 @@ class OperatingHandler(BaseProcessor):
         operating_data = {
             'Id': str(data.get('Id')),
             'WorkOrderId': doc_id,
-            'OperatorId': data.get('OperatorId'),
-            'OperatorName': data.get('OperatorName'),
-            'OperatorCode': data.get('OperatorCode'),
-            'OperationType': data.get('OperationType'),
-            'OperationName': data.get('OperationName'),
-            'OperationTime': data.get('OperationTime'),
-            'OperationResult': data.get('OperationResult'),
-            'OperationRemark': data.get('OperationRemark'),
-            'CreatedAt': data.get('CreatedAt'),
-            'CreatedById': data.get('CreatedById'),
-            'UpdatedById': data.get('UpdatedById'),
-            'UpdatedAt': data.get('UpdatedAt'),
-            'DeletedById': data.get('DeletedById'),
-            'DeletedAt': data.get('DeletedAt'),
+            'OperId': data.get('OperId'),
+            'AppCode': data.get('AppCode'),
+            'OperCode': data.get('OperCode'),
+            'OperName': data.get('OperName'),
+            'TagType': data.get('TagType'),
+            'InsertTime': data.get('InsertTime'),
             'Deleted': data.get('Deleted')
         }
-        
         if action == "insert":
             doc_body = {
                 'OperatingInfo': [operating_data]
@@ -70,8 +61,15 @@ class OperatingHandler(BaseProcessor):
                 logger.success(f"ES更新OperatingInfo成功: 索引={index_name}, ID={doc_id}, OperatingID={operating_data['Id']}")
                 return True
             except Exception as e:
-                logger.error(f"ES更新OperatingInfo失败: 索引={index_name}, ID={doc_id}, {str(e)}")
-                return False
+                if "document_missing_exception" in str(e) or "404" in str(e):
+                    logger.info(f"ES更新OperatingInfo时，原信息不存在，自动转为插入操作: 索引={index_name}, ID={doc_id}")
+                    doc_body = {
+                        'OperatingInfo': [operating_data]
+                    }
+                    return self._execute_es("index", doc_id, doc_body)
+                else:
+                    logger.error(f"ES更新OperatingInfo失败: 索引={index_name}, ID={doc_id}, {str(e)}")
+                    return False
         elif action == "delete":
             script = {
                 "source": """
@@ -98,8 +96,12 @@ class OperatingHandler(BaseProcessor):
                 logger.success(f"ES删除OperatingInfo成功: 索引={index_name}, ID={doc_id}, OperatingID={str(data.get('Id'))}")
                 return True
             except Exception as e:
-                logger.error(f"ES删除OperatingInfo失败: 索引={index_name}, ID={doc_id}, {str(e)}")
-                return False
+                if "document_missing_exception" in str(e) or "404" in str(e):
+                    logger.info(f"ES删除OperatingInfo时文档不存在，视为成功: 索引={index_name}, ID={doc_id}, OperatingID={str(data.get('Id'))}")
+                    return True
+                else:
+                    logger.error(f"ES删除OperatingInfo失败: 索引={index_name}, ID={doc_id}, {str(e)}")
+                    return False
         else:
             logger.warning(f"未定义的操作类型: {action}")
             return False

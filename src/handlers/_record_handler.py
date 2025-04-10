@@ -15,14 +15,11 @@ class RecordHandler(BaseProcessor):
         record_data = {
             'Id': str(data.get('Id')),
             'WorkOrderId': doc_id,
-            'RecordType': data.get('RecordType'),
-            'RecordContent': data.get('RecordContent'),
-            'CreatedById': data.get('CreatedById'),
-            'CreatedAt': data.get('CreatedAt'),
-            'UpdatedById': data.get('UpdatedById'),
-            'UpdatedAt': data.get('UpdatedAt'),
-            'DeletedById': data.get('DeletedById'),
-            'DeletedAt': data.get('DeletedAt'),
+            'CompleteTime': data.get('CompleteTime'),
+            'RecordPersonCode': data.get('RecordPersonCode'),
+            'RecordPersonName': data.get('RecordPersonName'),
+            'Remark': data.get('Remark'),
+            'InsertTime': data.get('InsertTime'),
             'Deleted': data.get('Deleted')
         }
         
@@ -63,8 +60,15 @@ class RecordHandler(BaseProcessor):
                 logger.success(f"ES更新RecordInfo成功: 索引={index_name}, ID={doc_id}, RecordID={record_data['Id']}")
                 return True
             except Exception as e:
-                logger.error(f"ES更新RecordInfo失败: 索引={index_name}, ID={doc_id}, {str(e)}")
-                return False
+                if "document_missing_exception" in str(e) or "404" in str(e):
+                    logger.info(f"ES更新RecordInfo时，原信息不存在，自动转为插入操作: 索引={index_name}, ID={doc_id}")
+                    doc_body = {
+                        'RecordInfo': [record_data] 
+                    }
+                    return self._execute_es("index", doc_id, doc_body)
+                else:
+                    logger.error(f"ES更新RecordInfo失败: 索引={index_name}, ID={doc_id}, {str(e)}")
+                    return False
         elif action == "delete":
             script = {
                 "source": """
@@ -91,8 +95,12 @@ class RecordHandler(BaseProcessor):
                 logger.success(f"ES删除RecordInfo成功: 索引={index_name}, ID={doc_id}, RecordID={str(data.get('Id'))}")
                 return True
             except Exception as e:
-                logger.error(f"ES删除RecordInfo失败: 索引={index_name}, ID={doc_id}, {str(e)}")
-                return False
+                if "document_missing_exception" in str(e) or "404" in str(e):
+                    logger.info(f"ES删除RecordInfo时文档不存在，视为成功: 索引={index_name}, ID={doc_id}, RecordID={str(data.get('Id'))}")
+                    return True
+                else:
+                    logger.error(f"ES删除RecordInfo失败: 索引={index_name}, ID={doc_id}, {str(e)}")
+                    return False
         else:
             logger.warning(f"未定义的操作类型: {action}")
             return False

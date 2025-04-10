@@ -15,13 +15,28 @@ class AppointmentHandler(BaseProcessor):
         appoint_data = {
             'Id': str(data.get('Id')),
             'WorkOrderId': doc_id,
-            'AppointType': data.get('AppointType'),
-            'AppointTime': data.get('AppointTime'),
+            'AppCode': data.get('AppCode'),
             'AppointStatus': data.get('AppointStatus'),
-            'AppointPerson': data.get('AppointPerson'),
-            'AppointPersonTel': data.get('AppointPersonTel'),
-            'AppointAddress': data.get('AppointAddress'),
-            'AppointRemark': data.get('AppointRemark'),
+            'AppointSource': data.get('AppointSource'),
+            'OrderTime': data.get('OrderTime'),
+            'AppointTime': data.get('AppointTime'),
+            'OperatorCode': data.get('OperatorCode'),
+            'OperatorName': data.get('OperatorName'),
+            'FailCode': data.get('FailCode'),
+            'FailText': data.get('FailText'),
+            'ApplyReason': data.get('ApplyReason'),
+            'ApplyCode': data.get('ApplyCode'),
+            'ProCode': data.get('ProCode'),
+            'ProName': data.get('ProName'),
+            'CityCode': data.get('CityCode'),
+            'CityName': data.get('CityName'),
+            'AreaCode': data.get('AreaCode'),
+            'AreaName': data.get('AreaName'),
+            'NextContactTime': data.get('NextContactTime'),
+            'InstallAddress': data.get('InstallAddress'),
+            'ChangeRemark': data.get('ChangeRemark'),
+            'Remark': data.get('Remark'),
+            'ExtraJson': data.get('ExtraJson'),
             'CreatedById': data.get('CreatedById'),
             'CreatedAt': data.get('CreatedAt'),
             'UpdatedById': data.get('UpdatedById'),
@@ -68,8 +83,15 @@ class AppointmentHandler(BaseProcessor):
                 logger.success(f"ES更新AppointInfo成功: 索引={index_name}, ID={doc_id}, AppointID={appoint_data['Id']}")
                 return True
             except Exception as e:
-                logger.error(f"ES更新AppointInfo失败: 索引={index_name}, ID={doc_id}, {str(e)}")
-                return False
+                if "document_missing_exception" in str(e) or "404" in str(e):
+                    logger.info(f"ES更新AppointInfo时，原信息不存在，自动转为插入操作: 索引={index_name}, ID={doc_id}")
+                    doc_body = {
+                        'AppointInfo': [appoint_data]
+                    }
+                    return self._execute_es("index", doc_id, doc_body)
+                else:
+                    logger.error(f"ES更新AppointInfo失败: 索引={index_name}, ID={doc_id}, {str(e)}")
+                    return False
         elif action == "delete":
             script = {
                 "source": """
@@ -96,8 +118,12 @@ class AppointmentHandler(BaseProcessor):
                 logger.success(f"ES删除AppointInfo成功: 索引={index_name}, ID={doc_id}, AppointID={str(data.get('Id'))}")
                 return True
             except Exception as e:
-                logger.error(f"ES删除AppointInfo失败: 索引={index_name}, ID={doc_id}, {str(e)}")
-                return False
+                if "document_missing_exception" in str(e) or "404" in str(e):
+                    logger.info(f"ES删除AppointInfo时文档不存在，视为成功: 索引={index_name}, ID={doc_id}, AppointID={str(data.get('Id'))}")
+                    return True
+                else:
+                    logger.error(f"ES删除AppointInfo失败: 索引={index_name}, ID={doc_id}, {str(e)}")
+                    return False
         else:
             logger.warning(f"未定义的操作类型: {action}")
             return False

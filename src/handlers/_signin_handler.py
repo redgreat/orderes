@@ -9,18 +9,25 @@ from typing import Dict, Any
 from src.base_processor import BaseProcessor, index_name
 
 class SigninHandler(BaseProcessor):
-    """处理tb_signin表的事件，存入SigninInfo嵌套字段"""
+    """处理tb_worksignininfo表的事件，存入SigninInfo嵌套字段"""
     def handle(self, action: str, data: Dict) -> bool:
         doc_id = str(data.get('WorkOrderId'))
         signin_data = {
             'Id': str(data.get('Id')),
             'WorkOrderId': doc_id,
-            'SigninType': data.get('SigninType'),
-            'SigninTime': data.get('SigninTime'),
-            'SigninAddress': data.get('SigninAddress'),
-            'SigninPerson': data.get('SigninPerson'),
-            'SigninPersonTel': data.get('SigninPersonTel'),
-            'SigninRemark': data.get('SigninRemark'),
+            'OrgCode': data.get('OrgCode'),
+            'SignType': data.get('SignType'),
+            'SignTime': data.get('SignTime'),
+            'SignLng': data.get('SignLng'),
+            'SignLat': data.get('SignLat'),
+            'SignAddr': data.get('SignAddr'),
+            'OriginalAddr': data.get('OriginalAddr'),
+            'SignAddrDistance': data.get('SignAddrDistance'),
+            'LastSignDistance': data.get('LastSignDistance'),
+            'InitialLng': data.get('InitialLng'),
+            'InitialLat': data.get('InitialLat'),
+            'IMEI': data.get('IMEI'),
+            'Remark': data.get('Remark'),
             'CreatedById': data.get('CreatedById'),
             'CreatedAt': data.get('CreatedAt'),
             'UpdatedById': data.get('UpdatedById'),
@@ -67,8 +74,15 @@ class SigninHandler(BaseProcessor):
                 logger.success(f"ES更新SigninInfo成功: 索引={index_name}, ID={doc_id}, SigninID={signin_data['Id']}")
                 return True
             except Exception as e:
-                logger.error(f"ES更新SigninInfo失败: 索引={index_name}, ID={doc_id}, {str(e)}")
-                return False
+                if "document_missing_exception" in str(e) or "404" in str(e):
+                    logger.info(f"ES更新SigninInfo时，原信息不存在，自动转为插入操作: 索引={index_name}, ID={doc_id}")
+                    doc_body = {
+                        'SigninInfo': [signin_data]
+                    }
+                    return self._execute_es("index", doc_id, doc_body)
+                else:
+                    logger.error(f"ES更新SigninInfo失败: 索引={index_name}, ID={doc_id}, {str(e)}")
+                    return False
         elif action == "delete":
             script = {
                 "source": """
@@ -95,8 +109,12 @@ class SigninHandler(BaseProcessor):
                 logger.success(f"ES删除SigninInfo成功: 索引={index_name}, ID={doc_id}, SigninID={str(data.get('Id'))}")
                 return True
             except Exception as e:
-                logger.error(f"ES删除SigninInfo失败: 索引={index_name}, ID={doc_id}, {str(e)}")
-                return False
+                if "document_missing_exception" in str(e) or "404" in str(e):
+                    logger.info(f"ES删除SigninInfo时文档不存在，视为成功: 索引={index_name}, ID={doc_id}, SigninID={str(data.get('Id'))}")
+                    return True
+                else:
+                    logger.error(f"ES删除SigninInfo失败: 索引={index_name}, ID={doc_id}, {str(e)}")
+                    return False
         else:
             logger.warning(f"未定义的操作类型: {action}")
             return False

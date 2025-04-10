@@ -16,17 +16,10 @@ class JsonHandler(BaseProcessor):
         json_data = {
             'Id': str(data.get('Id')),
             'WorkOrderId': doc_id,
-            'JsonType': data.get('JsonType'),
-            'JsonContent': data.get('JsonContent'),
-            'CreatedAt': data.get('CreatedAt'),
-            'CreatedById': data.get('CreatedById'),
-            'UpdatedById': data.get('UpdatedById'),
-            'UpdatedAt': data.get('UpdatedAt'),
-            'DeletedById': data.get('DeletedById'),
-            'DeletedAt': data.get('DeletedAt'),
+            'BussinessJson': data.get('BussinessJson'),
+            'InsertTime': data.get('InsertTime'),
             'Deleted': data.get('Deleted')
         }
-        
         if action == "insert":
             doc_body = {
                 'JsonInfo': [json_data]
@@ -64,8 +57,15 @@ class JsonHandler(BaseProcessor):
                 logger.success(f"ES更新JsonInfo成功: 索引={index_name}, ID={doc_id}, JsonID={json_data['Id']}")
                 return True
             except Exception as e:
-                logger.error(f"ES更新JsonInfo失败: 索引={index_name}, ID={doc_id}, {str(e)}")
-                return False
+                if "document_missing_exception" in str(e) or "404" in str(e):
+                    logger.info(f"ES更新JsonInfo时，原信息不存在，自动转为插入操作: 索引={index_name}, ID={doc_id}")
+                    doc_body = {
+                        'JsonInfo': [json_data] 
+                    }
+                    return self._execute_es("index", doc_id, doc_body)
+                else:
+                    logger.error(f"ES更新JsonInfo失败: 索引={index_name}, ID={doc_id}, {str(e)}")
+                    return False
         elif action == "delete":
             script = {
                 "source": """

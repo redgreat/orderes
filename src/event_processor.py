@@ -53,37 +53,6 @@ class EventProcessor(BaseProcessor):
             "tb_worksignininfo": SigninHandler(self.es_client)
         }
 
-    def _execute_es(self, operation: str, doc_id: str, body: Optional[Dict[str, Any]] = None) -> bool:
-        """执行ElasticSearch操作
-        Args:
-            operation: 操作类型 (index, update, delete)
-            doc_id: 文档ID
-            body: 文档内容
-        """
-        try:
-            if operation == "index":
-                self.es_client.index(index=index_name, id=doc_id, body=body)
-                logger.success(f"ES索引文档成功: 索引={index_name}, ID={doc_id}")
-            elif operation == "update":
-                try:
-                    self.es_client.update(index=index_name, id=doc_id, body={"doc": body})
-                    logger.success(f"ES更新文档成功: 索引={index_name}, ID={doc_id}")
-                except NotFoundError:
-                    # 文档不存在时转为insert操作
-                    self.es_client.index(index=index_name, id=doc_id, body=body)
-                    logger.success(f"ES文档不存在，转为插入成功: 索引={index_name}, ID={doc_id}")
-            elif operation == "delete":
-                try:
-                    self.es_client.delete(index=index_name, id=doc_id)
-                    logger.success(f"ES删除文档成功: 索引={index_name}, ID={doc_id}")
-                except NotFoundError:
-                    logger.warning(f"ES删除文档失败，文档不存在: 索引={index_name}, ID={doc_id}")
-                    return True  # 文档不存在也视为删除成功
-            return True
-        except Exception as e:
-            logger.error(f"ES操作失败: 索引={index_name}, {str(e)}")
-            return False
-
     def handle_event(self, action: str, data: Dict) -> bool:
         """统一事件处理入口，根据表名分发到不同的处理方法
         Args:

@@ -9,15 +9,18 @@ from typing import Dict, Any
 from src.base_processor import BaseProcessor, index_name
 
 class ConfigHandler(BaseProcessor):
-    """处理tb_config表的事件，存入ConfigInfo嵌套字段"""
+    """处理basic_custspecialconfig表的事件，存入ConfigInfo嵌套字段"""
     def handle(self, action: str, data: Dict) -> bool:
         doc_id = str(data.get('WorkOrderId'))
         config_data = {
             'Id': str(data.get('Id')),
             'WorkOrderId': doc_id,
-            'ConfigType': data.get('ConfigType'),
-            'ConfigValue': data.get('ConfigValue'),
-            'ConfigRemark': data.get('ConfigRemark'),
+            'CustomerId': data.get('CustomerId'),
+            'CustomerName': data.get('CustomerName'),
+            'CustStoreId': data.get('CustStoreId'),
+            'CustStoreName': data.get('CustStoreName'),
+            'ConfirmType': data.get('ConfirmType'),
+            'ExtraJson': data.get('ExtraJson'),
             'CreatedById': data.get('CreatedById'),
             'CreatedAt': data.get('CreatedAt'),
             'UpdatedById': data.get('UpdatedById'),
@@ -64,8 +67,15 @@ class ConfigHandler(BaseProcessor):
                 logger.success(f"ES更新ConfigInfo成功: 索引={index_name}, ID={doc_id}, ConfigID={config_data['Id']}")
                 return True
             except Exception as e:
-                logger.error(f"ES更新ConfigInfo失败: 索引={index_name}, ID={doc_id}, {str(e)}")
-                return False
+                if "document_missing_exception" in str(e) or "404" in str(e):
+                    logger.info(f"ES更新ConfigInfo时，原信息不存在，自动转为插入操作: 索引={index_name}, ID={doc_id}")
+                    doc_body = {
+                        'ConfigInfo': [config_data]
+                    }
+                    return self._execute_es("index", doc_id, doc_body)
+                else:
+                    logger.error(f"ES更新ConfigInfo失败: 索引={index_name}, ID={doc_id}, {str(e)}")
+                    return False
         elif action == "delete":
             script = {
                 "source": """
@@ -92,8 +102,12 @@ class ConfigHandler(BaseProcessor):
                 logger.success(f"ES删除ConfigInfo成功: 索引={index_name}, ID={doc_id}, ConfigID={str(data.get('Id'))}")
                 return True
             except Exception as e:
-                logger.error(f"ES删除ConfigInfo失败: 索引={index_name}, ID={doc_id}, {str(e)}")
-                return False
+                if "document_missing_exception" in str(e) or "404" in str(e):
+                    logger.info(f"ES删除ConfigInfo时文档不存在，视为成功: 索引={index_name}, ID={doc_id}, ConfigID={str(data.get('Id'))}")
+                    return True
+                else:
+                    logger.error(f"ES删除ConfigInfo失败: 索引={index_name}, ID={doc_id}, {str(e)}")
+                    return False
         else:
             logger.warning(f"未定义的操作类型: {action}")
             return False
