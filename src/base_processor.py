@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding:utf-8 -*-
 # @author by wangcw @ 2025
+# @generate at 2025-4-10 15:58:28
 # comment: 事件处理器基类
 
 from elasticsearch import Elasticsearch

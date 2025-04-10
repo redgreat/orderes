@@ -12,7 +12,7 @@ from typing import Dict, Any, Optional
 import importlib
 
 # 从基类导入索引名称
-from src.base_processor import BaseProcessor, index_name
+from base_processor import BaseProcessor, index_name
 
 class EventProcessor(BaseProcessor):
     """事件处理器基类，接收JSON数据并根据表名分发到不同的处理方法"""
@@ -24,18 +24,18 @@ class EventProcessor(BaseProcessor):
     def _init_handlers(self):
         """延迟导入处理器类，避免循环导入问题"""
         # 动态导入处理器类
-        from src.handlers._order_handler import OrderHandler
-        from src.handlers._status_handler import StatusHandler
-        from src.handlers._car_handler import CarHandler
-        from src.handlers._service_handler import ServiceHandler
-        from src.handlers._record_handler import RecordHandler
-        from src.handlers._appointment_handler import AppointmentHandler
-        from src.handlers._appointment_concat_handler import AppointmentConcatHandler
-        from src.handlers._operating_handler import OperatingHandler
-        from src.handlers._json_handler import JsonHandler
-        from src.handlers._column_handler import ColumnHandler
-        from src.handlers._config_handler import ConfigHandler
-        from src.handlers._signin_handler import SigninHandler
+        from handlers._order_handler import OrderHandler
+        from handlers._status_handler import StatusHandler
+        from handlers._car_handler import CarHandler
+        from handlers._service_handler import ServiceHandler
+        from handlers._record_handler import RecordHandler
+        from handlers._appointment_handler import AppointmentHandler
+        from handlers._appointment_concat_handler import AppointmentConcatHandler
+        from handlers._operating_handler import OperatingHandler
+        from handlers._json_handler import JsonHandler
+        from handlers._column_handler import ColumnHandler
+        from handlers._config_handler import ConfigHandler
+        from handlers._signin_handler import SigninHandler
         
         # 初始化处理器映射
         self.handlers = {

@@ -12,6 +12,8 @@ import configparser
 from loguru import logger
 import json
 import pymysql
+import time
+import argparse
 from elasticsearch import Elasticsearch
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -185,7 +187,67 @@ def dict_to_json(res_value):
     return json.dumps(serializable_record, ensure_ascii=False, indent=4)
 
 
-def main():
+def get_current_binlog_position(conn):
+    """获取当前binlog位置
+    
+    Args:
+        conn: 数据库连接
+        
+    Returns:
+        tuple: (log_file, log_pos) 或者在出错时返回 (None, None)
+    """
+    try:
+        cursor = conn.cursor(pymysql.cursors.DictCursor)
+        cursor.execute("SHOW MASTER STATUS")
+        binlog_status = cursor.fetchone()
+        cursor.close()
+        
+        if binlog_status and 'File' in binlog_status and 'Position' in binlog_status:
+            log_file = binlog_status['File']
+            log_pos = binlog_status['Position']
+            return log_file, log_pos
+        else:
+            logger.warning("无法获取当前binlog位置")
+            return None, None
+    except Exception as e:
+        logger.error(f"获取binlog位置时发生错误: {str(e)}")
+        return None, None
+
+
+def update_binlog_config(log_file, log_pos):
+    """更新配置文件中的binlog位置
+    
+    Args:
+        log_file: binlog文件名
+        log_pos: binlog位置
+        
+    Returns:
+        bool: 更新是否成功
+    """
+    try:
+        config = configparser.ConfigParser()
+        config.read(config_path)
+        config.set("binlog", "log_file", log_file)
+        config.set("binlog", "log_pos", str(log_pos))
+        with open(config_path, 'w') as f:
+            config.write(f)
+        logger.info(f"已更新配置文件中的binlog位置: {log_file}:{log_pos}")
+        return True
+    except Exception as e:
+        logger.error(f"更新配置文件时发生错误: {str(e)}")
+        return False
+
+
+def start_binlog_listener(log_file, log_pos):
+    """启动binlog监听
+    
+    Args:
+        log_file: binlog文件名
+        log_pos: binlog位置
+    """
+    logger.info(f"开始监听binlog，起始位置: {log_file}:{log_pos}")
+    
+    # 创建binlog流读取器
     stream = BinLogStreamReader(
         connection_settings=SRC_MYSQL_SETTINGS,
         server_id=3,
@@ -193,8 +255,8 @@ def main():
         only_events=[DeleteRowsEvent, WriteRowsEvent, UpdateRowsEvent],  # 指定只监听某些事件
         only_schemas=src_database,  # 指定只监听某些库（但binlog还是要读取全部）
         only_tables=src_tables,  # 指定监听某些表
-        log_file=bin_log_file,  # 指定起始binlog文件
-        log_pos=bin_log_pos  # 指定起始位点
+        log_file=log_file,  # 指定起始binlog文件
+        log_pos=log_pos  # 指定起始位点
     )
 
     # 创建ElasticSearch连接
@@ -202,34 +264,111 @@ def main():
     
     # 创建统一的事件处理器
     processor = EventProcessor(es_client)
-    # 使用上下文管理器
-    with processor:
-        for binlog_event in stream:
-            for row in binlog_event.rows:
-                event = {"schema": binlog_event.schema, "table": binlog_event.table}
-                
-                # 确定事件类型和数据
-                if isinstance(binlog_event, WriteRowsEvent):
-                    event["action"] = "insert"
-                    event.update(row["values"])
-                elif isinstance(binlog_event, UpdateRowsEvent):
-                    event["action"] = "update"
-                    event.update(row["after_values"])
-                elif isinstance(binlog_event, DeleteRowsEvent):
-                    event["action"] = "delete"
-                    event.update(row["values"])
-                
-                # 转换为JSON数据
-                json_data = json.loads(dict_to_json(event))
-                # 使用处理器处理事件
-                processor.handle_event(
-                    action=event["action"],
-                    data=json_data
-                )
     
-    sys.stdout.flush()
-    stream.close()
-    es_client.close()
+    # 记录上次记录binlog位置的时间
+    last_log_time = time.time()
+    # 记录binlog位置的间隔（秒）
+    log_interval = 300  # 5分钟记录一次
+    
+    # 创建数据库连接用于获取binlog位置
+    conn = pymysql.connect(
+        host=src_host,
+        port=src_port,
+        user=src_user,
+        password=src_password,
+        charset=src_charset
+    )
+    
+    try:
+        # 使用上下文管理器
+        with processor:
+            for binlog_event in stream:
+                # 定时记录当前binlog位置
+                current_time = time.time()
+                if current_time - last_log_time >= log_interval:
+                    # 获取当前binlog位置
+                    current_log_file = stream.log_file
+                    current_log_pos = stream.log_pos
+                    
+                    logger.info(f"当前binlog位置: {current_log_file}:{current_log_pos}")
+                    # 更新配置文件
+                    update_binlog_config(current_log_file, current_log_pos)
+                    
+                    # 更新上次记录时间
+                    last_log_time = current_time
+                
+                for row in binlog_event.rows:
+                    event = {"schema": binlog_event.schema, "table": binlog_event.table}
+                    
+                    # 确定事件类型和数据
+                    if isinstance(binlog_event, WriteRowsEvent):
+                        event["action"] = "insert"
+                        event.update(row["values"])
+                    elif isinstance(binlog_event, UpdateRowsEvent):
+                        event["action"] = "update"
+                        event.update(row["after_values"])
+                    elif isinstance(binlog_event, DeleteRowsEvent):
+                        event["action"] = "delete"
+                        event.update(row["values"])
+                    
+                    # 转换为JSON数据
+                    json_data = json.loads(dict_to_json(event))
+                    # 使用处理器处理事件
+                    processor.handle_event(
+                        action=event["action"],
+                        data=json_data
+                    )
+    except KeyboardInterrupt:
+        logger.info("收到中断信号，程序退出")
+    except Exception as e:
+        logger.error(f"监听binlog过程中发生错误: {str(e)}")
+    finally:
+        # 关闭连接
+        stream.close()
+        es_client.close()
+        conn.close()
+        sys.stdout.flush()
+
+
+def main():
+    # 解析命令行参数
+    parser = argparse.ArgumentParser(description="工单数据同步工具")
+    parser.add_argument("--init", action="store_true", help="是否初始化历史数据")
+    parser.add_argument("--start", help="初始化数据的开始时间，格式为 YYYY-MM-DD HH:MM:SS")
+    args = parser.parse_args()
+    
+    # 如果需要初始化数据
+    if args.init:
+        if not args.start:
+            logger.error("初始化数据需要提供开始时间参数 --start")
+            return
+        
+        # 导入init_data模块
+        try:
+            from src.etl.init_data import init_data
+            
+            # 调用初始化函数，获取最新的binlog位置
+            log_file, log_pos = init_data(args.start)
+            
+            if log_file and log_pos:
+                logger.info(f"初始化完成，使用最新binlog位置启动监听: {log_file}:{log_pos}")
+                # 更新配置文件
+                update_binlog_config(log_file, log_pos)
+                # 使用最新的binlog位置启动监听
+                start_binlog_listener(log_file, log_pos)
+            else:
+                logger.error("初始化数据后无法获取binlog位置，使用配置文件中的位置启动监听")
+                start_binlog_listener(bin_log_file, bin_log_pos)
+        except ImportError:
+            logger.error("无法导入init_data模块，请确保文件路径正确")
+            return
+        except Exception as e:
+            logger.error(f"初始化数据时发生错误: {str(e)}")
+            return
+    else:
+        # 直接使用配置文件中的binlog位置启动监听
+        logger.info(f"使用配置文件中的binlog位置启动监听: {bin_log_file}:{bin_log_pos}")
+        start_binlog_listener(bin_log_file, bin_log_pos)
 
 
 if __name__ == "__main__":
