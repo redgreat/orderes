@@ -52,6 +52,9 @@ tar_password = config.get("target", "password")
 bin_log_file = config.get("binlog", "log_file")
 bin_log_pos = int(config.get("binlog", "log_pos"))
 
+# 日志级别
+log_level = config.get("log", "level")
+
 # 日志配置
 logDir = os.path.join(project_root, "log")
 if not os.path.exists(logDir):
@@ -67,7 +70,7 @@ logger.add(
     format="{time:YYYY-MM-DD at HH:mm:ss} | {level} | {message}",
     backtrace=True,
     diagnose=True,
-    level="ERROR",
+    level=log_level,
 )
 
 SRC_MYSQL_SETTINGS = {

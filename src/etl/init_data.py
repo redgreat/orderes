@@ -42,6 +42,9 @@ tar_port = int(config.get("target", "port"))
 tar_user = config.get("target", "user")
 tar_password = config.get("target", "password")
 
+# 日志级别
+log_level = config.get("log", "level")
+
 # 日志配置
 logDir = os.path.join(project_root, "log")
 if not os.path.exists(logDir):
@@ -56,7 +59,7 @@ logger.add(
     format="{time:YYYY-MM-DD at HH:mm:ss} | {level} | {message}",
     backtrace=True,
     diagnose=True,
-    level="INFO",
+    level=log_level,
 )
 
 DB_SETTINGS = {
