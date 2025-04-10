@@ -59,7 +59,6 @@ logger.add(
     level="INFO",
 )
 
-# 数据库连接设置
 DB_SETTINGS = {
     "host": src_host,
     "port": src_port,
@@ -69,7 +68,6 @@ DB_SETTINGS = {
     "charset": src_charset,
 }
 
-# ElasticSearch连接配置
 ES_SETTINGS = {
     "hosts": [f"http://{tar_host}:{tar_port}"],
     "http_auth": (tar_user, tar_password) if tar_user and tar_password else None,
@@ -97,25 +95,17 @@ def process_table(conn, cursor, processor, table_name, sql_query, order_ids, bat
     total_ids = len(order_ids)
     logger.info(f"开始处理表 {table_name}，共有 {total_ids} 个工单ID")
     
-    # 分批处理工单ID
     for i in range(0, total_ids, batch_size):
-        # 获取当前批次的ID列表
+
         batch_ids = order_ids[i:i+batch_size]
-        
-        # 构建IN查询的参数字符串
         id_placeholder = ", ".join(["%s"] * len(batch_ids))
-        
-        # 替换SQL查询中的占位符
         current_sql = sql_query.format(id_placeholder=id_placeholder)
         
         try:
-            # 执行查询
             cursor.execute(current_sql, batch_ids)
             records = cursor.fetchall()
             
-            # 处理每条记录
             for record in records:
-                # 构造事件数据
                 event = {
                     "schema": src_database,
                     "table": table_name,
@@ -123,10 +113,8 @@ def process_table(conn, cursor, processor, table_name, sql_query, order_ids, bat
                 }
                 event.update(record)
                 
-                # 转换为JSON数据
                 json_data = json.loads(dict_to_json(event))
                 
-                # 使用处理器处理事件
                 result = processor.handle_event(
                     action="update",
                     data=json_data
@@ -153,13 +141,11 @@ def init_data(start_time, end_time=None, batch_size=100):
         end_time: 结束时间，格式为 YYYY-MM-DD HH:MM:SS
         batch_size: 每批处理的记录数，默认为100
     """
-    # 如果没有提供结束时间，使用当前时间
     if end_time is None:
         end_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         
     logger.info(f"开始初始化数据，时间范围: {start_time} 至 {end_time}")
     
-    # 连接数据库
     try:
         conn = pymysql.connect(**DB_SETTINGS)
         cursor = conn.cursor(pymysql.cursors.DictCursor)
@@ -168,7 +154,6 @@ def init_data(start_time, end_time=None, batch_size=100):
         logger.error(f"数据库连接失败: {str(e)}")
         return None, None
     
-    # 创建ElasticSearch连接
     try:
         es_client = Elasticsearch(**ES_SETTINGS)
         logger.info("ElasticSearch连接成功")
@@ -178,11 +163,9 @@ def init_data(start_time, end_time=None, batch_size=100):
         conn.close()
         return
     
-    # 创建事件处理器
     processor = EventProcessor(es_client)
     
     try:
-        # 查询符合条件的工单ID列表
         id_sql = """
         SELECT Id 
         FROM tb_workorderinfo 
@@ -196,12 +179,10 @@ def init_data(start_time, end_time=None, batch_size=100):
             logger.warning("没有找到符合条件的工单数据")
             return
         
-        # 提取工单ID列表
         order_ids = [str(record['Id']) for record in id_records]
         total_count = len(order_ids)
         logger.info(f"找到符合条件的工单数: {total_count}")
         
-        # 定义需要处理的表和对应的SQL查询
         tables_to_process = {
             "tb_workorderinfo": """
             SELECT * 
@@ -265,7 +246,6 @@ def init_data(start_time, end_time=None, batch_size=100):
             """
         }
         
-        # 处理每个表的数据
         total_processed = 0
         for table_name, sql_query in tables_to_process.items():
             processed = process_table(
@@ -277,7 +257,6 @@ def init_data(start_time, end_time=None, batch_size=100):
         
         logger.success(f"数据初始化完成，共处理 {total_processed} 条记录")
         
-        # 获取当前binlog位置
         try:
             cursor.execute("SHOW MASTER STATUS")
             binlog_status = cursor.fetchone()
@@ -297,7 +276,6 @@ def init_data(start_time, end_time=None, batch_size=100):
         logger.error(f"数据初始化过程中发生错误: {str(e)}")
         return None, None
     finally:
-        # 关闭连接
         cursor.close()
         conn.close()
         es_client.close()
@@ -312,7 +290,6 @@ def main():
     
     args = parser.parse_args()
     
-    # 验证时间格式
     try:
         datetime.datetime.strptime(args.start, "%Y-%m-%d %H:%M:%S")
         if args.end:
@@ -321,21 +298,20 @@ def main():
         logger.error("时间格式错误，请使用 YYYY-MM-DD HH:MM:SS 格式")
         return
     
-    # 初始化数据
     log_file, log_pos = init_data(args.start, args.end, args.batch)
     
     if log_file and log_pos:
         logger.info(f"初始化完成，当前binlog位置: {log_file}:{log_pos}")
         
-        # 更新配置文件中的binlog位置
         try:
             config = configparser.ConfigParser()
             config.read(config_path)
             config.set("binlog", "log_file", log_file)
             config.set("binlog", "log_pos", str(log_pos))
+            config.set("binlog", "init_time", "")  # 清空init_time字段
             with open(config_path, 'w') as f:
                 config.write(f)
-            logger.info("已更新配置文件中的binlog位置")
+            logger.info("已更新配置文件中的binlog位置并清空init_time")
         except Exception as e:
             logger.error(f"更新配置文件时发生错误: {str(e)}")
 

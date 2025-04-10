@@ -280,27 +280,21 @@ def start_binlog_listener(log_file, log_pos):
     )
     
     try:
-        # 使用上下文管理器
         with processor:
             for binlog_event in stream:
-                # 定时记录当前binlog位置
                 current_time = time.time()
                 if current_time - last_log_time >= log_interval:
-                    # 获取当前binlog位置
                     current_log_file = stream.log_file
                     current_log_pos = stream.log_pos
                     
                     logger.info(f"当前binlog位置: {current_log_file}:{current_log_pos}")
-                    # 更新配置文件
                     update_binlog_config(current_log_file, current_log_pos)
                     
-                    # 更新上次记录时间
                     last_log_time = current_time
                 
                 for row in binlog_event.rows:
                     event = {"schema": binlog_event.schema, "table": binlog_event.table}
                     
-                    # 确定事件类型和数据
                     if isinstance(binlog_event, WriteRowsEvent):
                         event["action"] = "insert"
                         event.update(row["values"])
@@ -311,9 +305,7 @@ def start_binlog_listener(log_file, log_pos):
                         event["action"] = "delete"
                         event.update(row["values"])
                     
-                    # 转换为JSON数据
                     json_data = json.loads(dict_to_json(event))
-                    # 使用处理器处理事件
                     processor.handle_event(
                         action=event["action"],
                         data=json_data
@@ -323,7 +315,6 @@ def start_binlog_listener(log_file, log_pos):
     except Exception as e:
         logger.error(f"监听binlog过程中发生错误: {str(e)}")
     finally:
-        # 关闭连接
         stream.close()
         es_client.close()
         conn.close()
@@ -331,30 +322,26 @@ def start_binlog_listener(log_file, log_pos):
 
 
 def main():
-    # 解析命令行参数
     parser = argparse.ArgumentParser(description="工单数据同步工具")
-    parser.add_argument("--init", action="store_true", help="是否初始化历史数据")
-    parser.add_argument("--start", help="初始化数据的开始时间，格式为 YYYY-MM-DD HH:MM:SS")
     args = parser.parse_args()
     
-    # 如果需要初始化数据
-    if args.init:
-        if not args.start:
-            logger.error("初始化数据需要提供开始时间参数 --start")
-            return
-        
-        # 导入init_data模块
+    init_time = None
+    try:
+        init_time = config.get("binlog", "init_time")
+        logger.info(f"从配置文件获取到初始化时间: {init_time}")
+    except (configparser.NoSectionError, configparser.NoOptionError):
+        logger.info("配置文件中未找到初始化时间配置，将直接使用binlog位点")
+    
+    if init_time:
         try:
             from src.etl.init_data import init_data
             
-            # 调用初始化函数，获取最新的binlog位置
-            log_file, log_pos = init_data(args.start)
+            logger.info(f"开始初始化历史数据，起始时间: {init_time}")
+            log_file, log_pos = init_data(init_time)
             
             if log_file and log_pos:
                 logger.info(f"初始化完成，使用最新binlog位置启动监听: {log_file}:{log_pos}")
-                # 更新配置文件
                 update_binlog_config(log_file, log_pos)
-                # 使用最新的binlog位置启动监听
                 start_binlog_listener(log_file, log_pos)
             else:
                 logger.error("初始化数据后无法获取binlog位置，使用配置文件中的位置启动监听")
@@ -366,7 +353,6 @@ def main():
             logger.error(f"初始化数据时发生错误: {str(e)}")
             return
     else:
-        # 直接使用配置文件中的binlog位置启动监听
         logger.info(f"使用配置文件中的binlog位置启动监听: {bin_log_file}:{bin_log_pos}")
         start_binlog_listener(bin_log_file, bin_log_pos)
 
