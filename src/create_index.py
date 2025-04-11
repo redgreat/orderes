@@ -143,10 +143,10 @@ def create_order_index():
                 "AppointInfo": {
                   "type": "nested"
                 },
-                "AppointConcat": {
+                "ConcatInfo": {
                   "type": "nested"
                 },
-                "OperateInfo": {
+                "OperatingInfo": {
                   "type": "nested"
                 },
                 "JsonInfo": {
@@ -158,7 +158,7 @@ def create_order_index():
                 "ConfigInfo": {
                   "type": "nested"
                 },
-                "SignInfo": {
+                "SigninInfo": {
                   "type": "nested"
                 }
             }
@@ -179,5 +179,48 @@ def create_order_index():
         logger.error(f"创建索引失败: {str(e)}")
         return False
 
+def create_operating_info_index(operating_index_name):
+    """创建OperatingInfo专用索引结构"""
+    es = Elasticsearch(**ES_SETTINGS)
+    
+    # OperatingInfo索引映射定义
+    mapping = {
+        "mappings": {
+            "properties": {
+                "Id": {"type": "keyword"},
+                "WorkOrderId": {"type": "keyword"},
+                "AppCode": {"type": "keyword"},
+                "OperId": {"type": "keyword"},
+                "OperCode": {"type": "text", "fields": {"keyword": {"type": "keyword"}}},
+                "OperName": {"type": "text", "fields": {"keyword": {"type": "keyword"}}},
+                "TagType": {"type": "text"},
+                "InsertTime": {
+                    "type": "date",
+                    "format": "yyyy-MM-dd'T'HH:mm:ssxxx||yyyy-MM-dd HH:mm:ss"
+                },
+                "Deleted": {"type": "text"}
+            }
+        }
+    }
+    
+    try:
+        # 删除已存在的索引（如果存在）
+        if es.indices.exists(index=operating_index_name):
+            es.indices.delete(index=operating_index_name)
+            logger.info(f"已删除现有索引: {operating_index_name}")
+            
+        # 创建新索引
+        es.indices.create(index=operating_index_name, mappings=mapping["mappings"])
+        logger.success(f"成功创建索引: {operating_index_name}")
+        return True
+    except Exception as e:
+        logger.error(f"创建索引失败: {str(e)}")
+        return False
+
 if __name__ == "__main__":
+    # 创建主工单索引
     create_order_index()
+    
+    # 创建OperatingInfo专用索引，手动指定索引名称
+    operating_index_name = "operating"
+    create_operating_info_index(operating_index_name)
