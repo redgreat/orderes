@@ -87,7 +87,7 @@ def process_table(conn, cursor, processor, table_name, sql_query, order_ids, bat
         cursor: 数据库游标
         processor: 事件处理器
         table_name: 表名
-        sql_query: SQL查询语句，必须包含 {id_placeholder} 占位符
+        sql_query: SQL查询语句，可选包含 {id_placeholder} 占位符
         order_ids: 工单ID列表
         batch_size: 每批处理的记录数，默认为100
         
@@ -98,20 +98,51 @@ def process_table(conn, cursor, processor, table_name, sql_query, order_ids, bat
     total_ids = len(order_ids)
     logger.info(f"开始处理表 {table_name}，共有 {total_ids} 个工单ID")
     
+    # 检查SQL是否包含占位符
+    has_placeholder = "{id_placeholder}" in sql_query
+    
+    # 如果没有占位符，直接执行一次SQL查询
+    if not has_placeholder:
+        try:
+            logger.info(f"处理表 {table_name}，直接执行SQL查询（无参数）")
+            cursor.execute(sql_query)
+            records = cursor.fetchall()
+            
+            for record in records:
+                event = {
+                    "schema": src_database,
+                    "table": table_name,
+                    "action": "update"
+                }
+                event.update(record)
+                
+                json_data = json.loads(dict_to_json(event))
+                
+                result = processor.handle_event(
+                    action="update",
+                    data=json_data
+                )
+                
+                if result:
+                    processed_count += 1
+                    if processed_count % 50 == 0:
+                        logger.info(f"表 {table_name} 已处理 {processed_count} 条记录")
+        
+        except Exception as e:
+            logger.error(f"处理表 {table_name} 数据时发生错误: {str(e)}")
+            logger.error(f"SQL语句: {sql_query}")
+        
+        logger.success(f"表 {table_name} 处理完成，共处理 {processed_count} 条记录")
+        return processed_count
+    
+    # 如果有占位符，分批处理
     for i in range(0, total_ids, batch_size):
-
         batch_ids = order_ids[i:i+batch_size]
         id_placeholder = ", ".join(["%s"] * len(batch_ids))
         current_sql = sql_query.format(id_placeholder=id_placeholder)
         
         try:
-            # 检查SQL是否包含需要替换的参数占位符(%)
-            if '%' in current_sql:
-                cursor.execute(current_sql, batch_ids)
-            else:
-                # 如果SQL中没有参数占位符，则直接执行不传参数
-                cursor.execute(current_sql)
-                
+            cursor.execute(current_sql, batch_ids)
             records = cursor.fetchall()
             
             for record in records:
@@ -137,10 +168,7 @@ def process_table(conn, cursor, processor, table_name, sql_query, order_ids, bat
         except Exception as e:
             logger.error(f"处理表 {table_name} 批次数据时发生错误: {str(e)}")
             logger.error(f"SQL语句: {current_sql}")
-            if '%' in current_sql:
-                logger.error(f"SQL参数: {batch_ids}")
-            # 继续处理其他批次，不中断整个流程
-            pass
+            logger.error(f"参数: {batch_ids}")
     
     logger.success(f"表 {table_name} 处理完成，共处理 {processed_count} 条记录")
     return processed_count
