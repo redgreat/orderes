@@ -69,30 +69,4 @@ class OperatingHandler(BaseProcessor):
             else:
                 logger.error(f"ES {op_type} OperatingInfo失败: 索引={operating_index_name}, ID={doc_id}, {str(e)}")
                 return False
-    
-    def query_operations_by_work_order(self, work_order_id: str) -> list:
-        """通过工单ID查询相关的所有操作记录"""
-        try:
-            result = self.es_client.search(
-                index=operating_index_name,
-                body={
-                    "query": {
-                        "term": {
-                            "WorkOrderId": work_order_id
-                        }
-                    },
-                    "sort": [
-                        {"InsertTime": {"order": "desc"}}
-                    ],
-                    "size": 100  # 限制返回数量，可根据需要调整
-                }
-            )
-            
-            operations = []
-            for hit in result.get('hits', {}).get('hits', []):
-                operations.append(hit['_source'])
                 
-            return operations
-        except Exception as e:
-            logger.error(f"查询工单操作记录失败: work_order_id={work_order_id}, error={str(e)}")
-            return []
