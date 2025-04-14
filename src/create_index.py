@@ -166,9 +166,6 @@ def create_order_index():
                 "ColumnInfo": {
                   "type": "nested"
                 },
-                "ConfigInfo": {
-                  "type": "nested"
-                },
                 "SigninInfo": {
                   "type": "nested"
                 }
