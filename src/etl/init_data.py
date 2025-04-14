@@ -105,7 +105,13 @@ def process_table(conn, cursor, processor, table_name, sql_query, order_ids, bat
         current_sql = sql_query.format(id_placeholder=id_placeholder)
         
         try:
-            cursor.execute(current_sql, batch_ids)
+            # 检查SQL是否包含需要替换的参数占位符(%)
+            if '%' in current_sql:
+                cursor.execute(current_sql, batch_ids)
+            else:
+                # 如果SQL中没有参数占位符，则直接执行不传参数
+                cursor.execute(current_sql)
+                
             records = cursor.fetchall()
             
             for record in records:
@@ -130,6 +136,11 @@ def process_table(conn, cursor, processor, table_name, sql_query, order_ids, bat
         
         except Exception as e:
             logger.error(f"处理表 {table_name} 批次数据时发生错误: {str(e)}")
+            logger.error(f"SQL语句: {current_sql}")
+            if '%' in current_sql:
+                logger.error(f"SQL参数: {batch_ids}")
+            # 继续处理其他批次，不中断整个流程
+            pass
     
     logger.success(f"表 {table_name} 处理完成，共处理 {processed_count} 条记录")
     return processed_count
