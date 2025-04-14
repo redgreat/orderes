@@ -125,7 +125,7 @@ def dict_to_str(value):
 
 
 def process_bu_json_field(value):
-    """专门处理Bu*Json字段，处理字节字符串表示法和Unicode编码"""
+    """专门处理BussinessJson字段，处理字节字符串表示法和Unicode编码"""
     if isinstance(value, bytes):
         try:
             return value.decode('utf-8')
@@ -203,19 +203,33 @@ def dict_to_json(res_value):
     for key, value in res_value.items():
         str_key = key.decode('utf-8') if isinstance(key, bytes) else str(key)
         if str_key not in ['schema', 'action']:
-            if str_key == 'BussinessJson' or str_key == 'ExtraJson':
+            if str_key == 'BussinessJson':
+                # 单独处理BussinessJson字段
                 processed_value = process_bu_json_field(value)
                 json_record[str_key] = processed_value
+            elif str_key == 'ExtraJson':
+                # 单独处理ExtraJson字段
+                processed_value = process_extra_json(value)
+                json_record[str_key] = processed_value
             elif str_key.lower().endswith('json'):
+                # 处理其他以json结尾的字段
                 if isinstance(value, str):
                     try:
-                        parsed_json = json.loads(value.strip("'").replace("'", '"'))
+                        value_clean = value.strip("'").replace("'", '"')
+                        # 修复常见的JSON格式问题
+                        if value_clean.endswith(',}'):
+                            value_clean = value_clean.replace(',}', '}')
+                        if value_clean.endswith(',]'):
+                            value_clean = value_clean.replace(',]', ']')
+                        
+                        parsed_json = json.loads(value_clean)
                         json_record[str_key] = parsed_json
                         continue
                     except json.JSONDecodeError:
                         pass
                 json_record[str_key] = dict_to_str(value)
             else:
+                # 处理普通字段
                 json_record[str_key] = dict_to_str(value)
     
     def ensure_serializable(obj):
