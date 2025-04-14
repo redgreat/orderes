@@ -87,12 +87,12 @@ def create_order_index():
                 "InstallTime": {
                   "type": "date",
                   "format": DATE_FORMAT,
-                  "ignore_malformed": true
+                  "ignore_malformed": True
                 },
                 "RequiredTime": {
                   "type": "date",
                   "format": DATE_FORMAT,
-                  "ignore_malformed": true
+                  "ignore_malformed": True
                 },
                 "LinkMan": {"type": "text"},
                 "LinkTel": {"type": "keyword"},
@@ -108,36 +108,36 @@ def create_order_index():
                 "EffectiveTime": {
                   "type": "date",
                   "format": DATE_FORMAT,
-                  "ignore_malformed": true
+                  "ignore_malformed": True
                 },
                 "EffectiveSuccessfulTime": {
                   "type": "date",
                   "format": DATE_FORMAT,
-                  "ignore_malformed": true
+                  "ignore_malformed": True
                 },
                 "CreatedById": {"type": "keyword"},
                 "CreatedAt": {
                   "type": "date",
                   "format": DATE_FORMAT,
-                  "ignore_malformed": true
+                  "ignore_malformed": True
                 },
                 "UpdatedById": {"type": "keyword"},
                 "UpdatedAt": {
                   "type": "date",
                   "format": DATE_FORMAT,
-                  "ignore_malformed": true
+                  "ignore_malformed": True
                 },
                 "DeletedById": {"type": "keyword"},
                 "DeletedAt": {
                   "type": "date",
                   "format": DATE_FORMAT,
-                  "ignore_malformed": true
+                  "ignore_malformed": True
                 },
                 "Deleted": {"type": "text"},
                 "LastUpdateTimeStamp": {
                   "type": "date",
                   "format": DATE_FORMAT,
-                  "ignore_malformed": true
+                  "ignore_malformed": True
                 },
                 "StatusInfo": {
                   "type": "nested"
@@ -208,7 +208,7 @@ def create_operating_info_index(operating_index_name):
                 "InsertTime": {
                     "type": "date",
                     "format": DATE_FORMAT,
-                    "ignore_malformed": true
+                    "ignore_malformed": True
                 },
                 "Deleted": {"type": "text"}
             }
@@ -249,19 +249,19 @@ def create_custspecialconfig_index(custspecialconfig_index_name):
                 "CreatedAt": {
                     "type": "date",
                     "format": DATE_FORMAT,
-                    "ignore_malformed": true
+                    "ignore_malformed": True
                 },
                 "UpdatedById": {"type": "keyword"},
                 "UpdatedAt": {
                     "type": "date",
                     "format": DATE_FORMAT,
-                    "ignore_malformed": true
+                    "ignore_malformed": True
                 },
                 "DeletedById": {"type": "keyword"},
                 "DeletedAt": {
                     "type": "date",
                     "format": DATE_FORMAT,
-                    "ignore_malformed": true
+                    "ignore_malformed": True
                 },
                 "Deleted": {"type": "boolean"}
             }

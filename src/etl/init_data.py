@@ -219,8 +219,7 @@ def init_data(start_time, end_time=None, batch_size=100):
             """,
             "basic_custspecialconfig": """
             SELECT * 
-            FROM basic_custspecialconfig 
-            WHERE WorkOrderId IN ({id_placeholder})
+            FROM basic_custspecialconfig
             """,
             "tb_workbussinessjsoninfo": """
             SELECT Id, WorkOrderId, BussinessJson, InsertTime, Deleted
