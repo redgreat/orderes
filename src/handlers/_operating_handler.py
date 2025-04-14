@@ -69,7 +69,8 @@ class OperatingHandler(BaseProcessor):
             else:
                 logger.error(f"ES {op_type} OperatingInfo失败: 索引={operating_index_name}, ID={doc_id}, {str(e)}")
                 return False
-  
+    
+    def query_operations_by_work_order(self, work_order_id: str) -> list:
         """通过工单ID查询相关的所有操作记录"""
         try:
             result = self.es_client.search(

@@ -136,7 +136,15 @@ def process_bu_json_field(value):
         if value.startswith("b'") and value.endswith("'"):
             value = value[2:-1]
         try:
-            parsed_json = json.loads(value.replace("'", '"'))
+            # 处理单引号包围的JSON字符串
+            value = value.replace("'", '"').replace('""', '"')
+            # 修复可能的JSON格式问题，如结尾有多余的逗号
+            if value.endswith(',}'):
+                value = value.replace(',}', '}')
+            if value.endswith(',]'):
+                value = value.replace(',]', ']')
+                
+            parsed_json = json.loads(value)
             if isinstance(parsed_json, dict):
                 string_keyed_dict = {}
                 for k, v in parsed_json.items():
@@ -151,6 +159,44 @@ def process_bu_json_field(value):
             except (UnicodeDecodeError, UnicodeEncodeError):
                 pass
     return value
+
+def process_extra_json(value):
+    """专门处理ExtraJson字段，确保返回对象而非字符串"""
+    if value is None:
+        return {}
+        
+    if isinstance(value, dict):
+        return value
+        
+    if isinstance(value, bytes):
+        try:
+            value = value.decode('utf-8')
+        except UnicodeDecodeError:
+            return {}
+    
+    if isinstance(value, str):
+        # 去除可能的单引号包围
+        value = value.strip("'")
+        # 替换内部的单引号为双引号以便JSON解析
+        value = value.replace("'", '"')
+        # 修复常见JSON格式问题
+        value = value.replace('""', '"')
+        if value.endswith(',}'):
+            value = value.replace(',}', '}')
+        
+        try:
+            parsed = json.loads(value)
+            if isinstance(parsed, dict):
+                return parsed
+            else:
+                # 如果解析出来不是字典，返回包装的字典
+                return {"value": parsed}
+        except json.JSONDecodeError:
+            # 无法解析的情况下，返回包含原始值的字典
+            return {"raw_value": value}
+    
+    # 其他类型情况，返回空对象
+    return {}
 
 def dict_to_json(res_value):
     json_record = {}

@@ -48,6 +48,9 @@ ES_SETTINGS = {
     "timeout": 30
 }
 
+# 所有字段通用的日期格式定义
+DATE_FORMAT = "strict_date_optional_time||yyyy-MM-dd'T'HH:mm:ssxxx||yyyy-MM-dd HH:mm:ss||yyyy-MM-dd||epoch_millis"
+
 def create_order_index():
     """创建工单索引结构"""
     es = Elasticsearch(**ES_SETTINGS)
@@ -83,11 +86,13 @@ def create_order_index():
                 "InstallAddress": {"type": "text"},
                 "InstallTime": {
                   "type": "date",
-                  "format": "yyyy-MM-dd'T'HH:mm:ssxxx||yyyy-MM-dd HH:mm:ss"
+                  "format": DATE_FORMAT,
+                  "ignore_malformed": true
                 },
-                        "RequiredTime": {
+                "RequiredTime": {
                   "type": "date",
-                  "format": "yyyy-MM-dd'T'HH:mm:ssxxx||yyyy-MM-dd HH:mm:ss"
+                  "format": DATE_FORMAT,
+                  "ignore_malformed": true
                 },
                 "LinkMan": {"type": "text"},
                 "LinkTel": {"type": "keyword"},
@@ -102,31 +107,37 @@ def create_order_index():
                 "CreatePersonName": {"type": "text"},
                 "EffectiveTime": {
                   "type": "date",
-                  "format": "yyyy-MM-dd'T'HH:mm:ssxxx||yyyy-MM-dd HH:mm:ss"
+                  "format": DATE_FORMAT,
+                  "ignore_malformed": true
                 },
                 "EffectiveSuccessfulTime": {
                   "type": "date",
-                  "format": "yyyy-MM-dd'T'HH:mm:ssxxx||yyyy-MM-dd HH:mm:ss"
+                  "format": DATE_FORMAT,
+                  "ignore_malformed": true
                 },
                 "CreatedById": {"type": "keyword"},
                 "CreatedAt": {
                   "type": "date",
-                  "format": "yyyy-MM-dd'T'HH:mm:ssxxx||yyyy-MM-dd HH:mm:ss"
+                  "format": DATE_FORMAT,
+                  "ignore_malformed": true
                 },
                 "UpdatedById": {"type": "keyword"},
                 "UpdatedAt": {
                   "type": "date",
-                  "format": "yyyy-MM-dd'T'HH:mm:ssxxx||yyyy-MM-dd HH:mm:ss"
+                  "format": DATE_FORMAT,
+                  "ignore_malformed": true
                 },
                 "DeletedById": {"type": "keyword"},
                 "DeletedAt": {
                   "type": "date",
-                  "format": "yyyy-MM-dd'T'HH:mm:ssxxx||yyyy-MM-dd HH:mm:ss"
+                  "format": DATE_FORMAT,
+                  "ignore_malformed": true
                 },
                 "Deleted": {"type": "text"},
                 "LastUpdateTimeStamp": {
                   "type": "date",
-                  "format": "yyyy-MM-dd'T'HH:mm:ssxxx||yyyy-MM-dd HH:mm:ss"
+                  "format": DATE_FORMAT,
+                  "ignore_malformed": true
                 },
                 "StatusInfo": {
                   "type": "nested"
@@ -196,7 +207,8 @@ def create_operating_info_index(operating_index_name):
                 "TagType": {"type": "text"},
                 "InsertTime": {
                     "type": "date",
-                    "format": "yyyy-MM-dd'T'HH:mm:ssxxx||yyyy-MM-dd HH:mm:ss"
+                    "format": DATE_FORMAT,
+                    "ignore_malformed": true
                 },
                 "Deleted": {"type": "text"}
             }
@@ -217,6 +229,59 @@ def create_operating_info_index(operating_index_name):
         logger.error(f"创建索引失败: {str(e)}")
         return False
 
+def create_custspecialconfig_index(custspecialconfig_index_name):
+    """创建客户特殊配置专用索引结构"""
+    es = Elasticsearch(**ES_SETTINGS)
+    
+    # CustSpecialConfig索引映射定义
+    mapping = {
+        "mappings": {
+            "properties": {
+                "Id": {"type": "keyword"},
+                "CustomerId": {"type": "keyword"},
+                "CustomerName": {"type": "text", "fields": {"keyword": {"type": "keyword"}}},
+                "ConfigType": {"type": "keyword"},
+                "ConfigKey": {"type": "keyword"},
+                "ConfigValue": {"type": "text"},
+                "Remark": {"type": "text"},
+                "IsEnabled": {"type": "boolean"},
+                "CreatedById": {"type": "keyword"},
+                "CreatedAt": {
+                    "type": "date",
+                    "format": DATE_FORMAT,
+                    "ignore_malformed": true
+                },
+                "UpdatedById": {"type": "keyword"},
+                "UpdatedAt": {
+                    "type": "date",
+                    "format": DATE_FORMAT,
+                    "ignore_malformed": true
+                },
+                "DeletedById": {"type": "keyword"},
+                "DeletedAt": {
+                    "type": "date",
+                    "format": DATE_FORMAT,
+                    "ignore_malformed": true
+                },
+                "Deleted": {"type": "boolean"}
+            }
+        }
+    }
+    
+    try:
+        # 删除已存在的索引（如果存在）
+        if es.indices.exists(index=custspecialconfig_index_name):
+            es.indices.delete(index=custspecialconfig_index_name)
+            logger.info(f"已删除现有索引: {custspecialconfig_index_name}")
+            
+        # 创建新索引
+        es.indices.create(index=custspecialconfig_index_name, mappings=mapping["mappings"])
+        logger.success(f"成功创建索引: {custspecialconfig_index_name}")
+        return True
+    except Exception as e:
+        logger.error(f"创建索引失败: {str(e)}")
+        return False
+
 if __name__ == "__main__":
     # 创建主工单索引
     create_order_index()
@@ -224,3 +289,7 @@ if __name__ == "__main__":
     # 创建OperatingInfo专用索引，手动指定索引名称
     operating_index_name = "operating"
     create_operating_info_index(operating_index_name)
+    
+    # 创建CustSpecialConfig专用索引，手动指定索引名称
+    custspecialconfig_index_name = "custspecialconfig"
+    create_custspecialconfig_index(custspecialconfig_index_name)
