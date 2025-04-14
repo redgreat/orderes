@@ -12,7 +12,7 @@ from src.main import process_extra_json
 # 独立的客户特殊配置索引名称
 custspecialconfig_index_name = "custspecialconfig"
 
-class CustSpecialConfigHandler(BaseProcessor):
+class ConfigHandler(BaseProcessor):
     """处理basic_custspecialconfig表的事件，存储到独立索引"""
     
     def handle(self, action: str, data: Dict) -> bool:

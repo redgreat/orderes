@@ -309,6 +309,7 @@ def start_binlog_listener(log_file, log_pos):
                         event.update(row["values"])
                     
                     json_data = json.loads(dict_to_json(event))
+                    print('json_data: ', json_data)
                     processor.handle_event(
                         action=event["action"],
                         data=json_data
