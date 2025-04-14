@@ -64,7 +64,7 @@ class JsonHandler(BaseProcessor):
                     }
                     return self._execute_es("index", doc_id, doc_body)
                 else:
-                    logger.error(f"ES更新JsonInfo失败: 索引={index_name}, ID={doc_id}, {str(e)}")
+                    logger.error(f"ES更新JsonInfo失败: 索引={index_name}, ID={doc_id}, {str(e)}, data={data}")
                     return False
         elif action == "delete":
             script = {

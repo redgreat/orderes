@@ -309,6 +309,7 @@ def start_binlog_listener(log_file, log_pos):
                         event.update(row["values"])
                     
                     json_data = json.loads(dict_to_json(event))
+                    print('json_data: ', json_data)
                     processor.handle_event(
                         action=event["action"],
                         data=json_data
@@ -337,7 +338,39 @@ def main():
     
     if init_time:
         try:
-            from src.etl.init_data import init_data
+            # 使用更健壮的导入方式
+            try:
+                # 先尝试从src.etl导入
+                from src.etl.init_data import init_data
+            except ImportError:
+                # 如果失败，尝试使用相对导入
+                try:
+                    from etl.init_data import init_data
+                except ImportError:
+                    # 最后尝试动态导入
+                    import os
+                    import sys
+                    import importlib.util
+                    
+                    # 构建可能的路径
+                    etl_paths = [
+                        os.path.join(current_dir, "etl", "init_data.py"),
+                        os.path.join(project_root, "src", "etl", "init_data.py"),
+                        os.path.join(project_root, "etl", "init_data.py")
+                    ]
+                    
+                    init_data_module = None
+                    for path in etl_paths:
+                        if os.path.exists(path):
+                            logger.info(f"找到init_data模块路径: {path}")
+                            spec = importlib.util.spec_from_file_location("init_data", path)
+                            init_data_module = importlib.util.module_from_spec(spec)
+                            spec.loader.exec_module(init_data_module)
+                            init_data = init_data_module.init_data
+                            break
+                    
+                    if init_data_module is None:
+                        raise ImportError("无法在所有可能的路径中找到init_data模块")
             
             logger.info(f"开始初始化历史数据，起始时间: {init_time}")
             log_file, log_pos = init_data(init_time)
@@ -349,9 +382,10 @@ def main():
             else:
                 logger.error("初始化数据后无法获取binlog位置，使用配置文件中的位置启动监听")
                 start_binlog_listener(bin_log_file, bin_log_pos)
-        except ImportError:
-            logger.error("无法导入init_data模块，请确保文件路径正确")
-            return
+        except ImportError as e:
+            logger.error(f"无法导入init_data模块，请确保文件路径正确: {str(e)}")
+            logger.info(f"使用配置文件中的binlog位置启动监听: {bin_log_file}:{bin_log_pos}")
+            start_binlog_listener(bin_log_file, bin_log_pos)
         except Exception as e:
             logger.error(f"初始化数据时发生错误: {str(e)}")
             return
