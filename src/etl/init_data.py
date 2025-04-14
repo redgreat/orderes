@@ -87,7 +87,7 @@ def process_table(conn, cursor, processor, table_name, sql_query, order_ids, bat
         cursor: 数据库游标
         processor: 事件处理器
         table_name: 表名
-        sql_query: SQL查询语句，必须包含 {id_placeholder} 占位符
+        sql_query: SQL查询语句，可以包含 {id_placeholder} 占位符，如无则进行全量查询
         order_ids: 工单ID列表
         batch_size: 每批处理的记录数，默认为100
         
@@ -95,18 +95,52 @@ def process_table(conn, cursor, processor, table_name, sql_query, order_ids, bat
         int: 成功处理的记录数
     """
     processed_count = 0
-    total_ids = len(order_ids)
-    logger.info(f"开始处理表 {table_name}，共有 {total_ids} 个工单ID")
     
-    for i in range(0, total_ids, batch_size):
-
-        batch_ids = order_ids[i:i+batch_size]
-        id_placeholder = ", ".join(["%s"] * len(batch_ids))
-        current_sql = sql_query.format(id_placeholder=id_placeholder)
+    # 检查SQL查询是否包含占位符
+    if "{id_placeholder}" in sql_query:
+        # 按工单ID批次处理
+        total_ids = len(order_ids)
+        logger.info(f"开始处理表 {table_name}，共有 {total_ids} 个工单ID")
         
+        for i in range(0, total_ids, batch_size):
+            batch_ids = order_ids[i:i+batch_size]
+            id_placeholder = ", ".join(["%s"] * len(batch_ids))
+            current_sql = sql_query.format(id_placeholder=id_placeholder)
+            
+            try:
+                cursor.execute(current_sql, batch_ids)
+                records = cursor.fetchall()
+                
+                for record in records:
+                    event = {
+                        "schema": src_database,
+                        "table": table_name,
+                        "action": "update"
+                    }
+                    event.update(record)
+                    
+                    json_data = json.loads(dict_to_json(event))
+                    
+                    result = processor.handle_event(
+                        action="update",
+                        data=json_data
+                    )
+                    
+                    if result:
+                        processed_count += 1
+                        if processed_count % 50 == 0:
+                            logger.info(f"表 {table_name} 已处理 {processed_count} 条记录")
+            
+            except Exception as e:
+                logger.error(f"处理表 {table_name} 批次数据时发生错误: {str(e)}")
+    else:
+        # 全量查询处理
+        logger.info(f"开始处理表 {table_name} 的全量数据")
         try:
-            cursor.execute(current_sql, batch_ids)
+            cursor.execute(sql_query)
             records = cursor.fetchall()
+            total_records = len(records)
+            logger.info(f"表 {table_name} 查询到 {total_records} 条记录")
             
             for record in records:
                 event = {
@@ -129,7 +163,7 @@ def process_table(conn, cursor, processor, table_name, sql_query, order_ids, bat
                         logger.info(f"表 {table_name} 已处理 {processed_count} 条记录")
         
         except Exception as e:
-            logger.error(f"处理表 {table_name} 批次数据时发生错误: {str(e)}")
+            logger.error(f"处理表 {table_name} 全量数据时发生错误: {str(e)}")
     
     logger.success(f"表 {table_name} 处理完成，共处理 {processed_count} 条记录")
     return processed_count
@@ -219,8 +253,7 @@ def init_data(start_time, end_time=None, batch_size=100):
             """,
             "basic_custspecialconfig": """
             SELECT * 
-            FROM basic_custspecialconfig 
-            WHERE WorkOrderId IN ({id_placeholder})
+            FROM basic_custspecialconfig
             """,
             "tb_workbussinessjsoninfo": """
             SELECT Id, WorkOrderId, BussinessJson, InsertTime, Deleted
