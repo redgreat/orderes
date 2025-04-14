@@ -19,7 +19,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # 导入事件处理器
 from event_processor import EventProcessor
-from main import dict_to_json
+from utils import dict_to_json
 
 # 配置文件读取
 config = configparser.ConfigParser()

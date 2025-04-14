@@ -7,7 +7,7 @@ from elasticsearch import Elasticsearch
 from loguru import logger
 from typing import Dict, Any
 from src.base_processor import BaseProcessor
-from src.main import process_extra_json
+from src.utils import process_extra_json
 
 # 独立的客户特殊配置索引名称
 custspecialconfig_index_name = "custspecialconfig"

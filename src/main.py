@@ -4,8 +4,6 @@
 # @generate at 2025/3/21 15:26
 # comment: 监听mysql binglog，监听变化量后写入宽表
 
-import datetime
-import decimal
 import sys
 import os
 import configparser
@@ -15,6 +13,7 @@ import pymysql
 import time
 import argparse
 from elasticsearch import Elasticsearch
+from utils import dict_to_str, dict_to_json, process_bu_json_field
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -87,107 +86,6 @@ ES_SETTINGS = {
     "http_auth": (tar_user, tar_password) if tar_user and tar_password else None,
     "timeout": 30
 }
-
-
-def dict_to_str(value):
-    if isinstance(value, datetime.datetime):
-        return value.strftime('%Y-%m-%d %H:%M:%S')
-    elif isinstance(value, decimal.Decimal):
-        return str(value)
-    elif isinstance(value, bytes):
-        try:
-            return value.decode('utf-8')
-        except UnicodeDecodeError:
-            return value.hex()
-    elif isinstance(value, str):
-        value = value.strip("'")
-        try:
-            if value.startswith('{') and value.endswith('}'):
-                parsed_json = json.loads(value.replace("'", '"'))
-                if isinstance(parsed_json, dict):
-                    return {str(k): dict_to_str(v) for k, v in parsed_json.items()}
-                return parsed_json
-            elif value.startswith('[') and value.endswith(']'):
-                return json.loads(value.replace("'", '"'))
-        except json.JSONDecodeError:
-            pass
-        return value
-    elif isinstance(value, int):
-        return value
-    elif isinstance(value, dict):
-        return {str(k): dict_to_str(v) for k, v in value.items()}
-    elif isinstance(value, list):
-        return [dict_to_str(item) for item in value]
-    elif value is None:
-        return None
-    else:
-        return f"'{value}'"
-
-
-def process_bu_json_field(value):
-    """专门处理Bu*Json字段，处理字节字符串表示法和Unicode编码"""
-    if isinstance(value, bytes):
-        try:
-            return value.decode('utf-8')
-        except UnicodeDecodeError:
-            return value.hex()
-    
-    if isinstance(value, str):
-        if value.startswith("b'") and value.endswith("'"):
-            value = value[2:-1]
-        try:
-            parsed_json = json.loads(value.replace("'", '"'))
-            if isinstance(parsed_json, dict):
-                string_keyed_dict = {}
-                for k, v in parsed_json.items():
-                    if isinstance(k, bytes):
-                        k = k.decode('utf-8') if isinstance(k, bytes) else str(k)
-                    string_keyed_dict[k] = v
-                return string_keyed_dict
-            return parsed_json
-        except json.JSONDecodeError:
-            try:
-                return value.encode('latin-1').decode('unicode_escape')
-            except (UnicodeDecodeError, UnicodeEncodeError):
-                pass
-    return value
-
-def dict_to_json(res_value):
-    json_record = {}
-    for key, value in res_value.items():
-        str_key = key.decode('utf-8') if isinstance(key, bytes) else str(key)
-        if str_key not in ['schema', 'action']:
-            if str_key == 'BussinessJson' or str_key == 'ExtraJson':
-                processed_value = process_bu_json_field(value)
-                json_record[str_key] = processed_value
-            elif str_key.lower().endswith('json'):
-                if isinstance(value, str):
-                    try:
-                        parsed_json = json.loads(value.strip("'").replace("'", '"'))
-                        json_record[str_key] = parsed_json
-                        continue
-                    except json.JSONDecodeError:
-                        pass
-                json_record[str_key] = dict_to_str(value)
-            else:
-                json_record[str_key] = dict_to_str(value)
-    
-    def ensure_serializable(obj):
-        if isinstance(obj, dict):
-            return {(k.decode('utf-8') if isinstance(k, bytes) else str(k)): ensure_serializable(v) for k, v in obj.items()}
-        elif isinstance(obj, list):
-            return [ensure_serializable(item) for item in obj]
-        elif isinstance(obj, bytes):
-            try:
-                return obj.decode('utf-8')
-            except UnicodeDecodeError:
-                return obj.hex()
-        else:
-            return obj
-    
-    serializable_record = ensure_serializable(json_record)
-    
-    return json.dumps(serializable_record, ensure_ascii=False, indent=4)
 
 
 def get_current_binlog_position(conn):
@@ -337,23 +235,29 @@ def main():
     
     if init_time:
         try:
-            from src.etl.init_data import init_data
-            
-            logger.info(f"开始初始化历史数据，起始时间: {init_time}")
-            log_file, log_pos = init_data(init_time)
-            
-            if log_file and log_pos:
-                logger.info(f"初始化完成，使用最新binlog位置启动监听: {log_file}:{log_pos}")
-                update_binlog_config(log_file, log_pos)
-                start_binlog_listener(log_file, log_pos)
-            else:
-                logger.error("初始化数据后无法获取binlog位置，使用配置文件中的位置启动监听")
-                start_binlog_listener(bin_log_file, bin_log_pos)
-        except ImportError:
-            logger.error("无法导入init_data模块，请确保文件路径正确")
-            return
+            logger.info("尝试导入init_data模块...")
+            import traceback
+            try:
+                from etl.init_data import init_data
+                logger.info("成功导入init_data模块")
+                
+                logger.info(f"开始初始化历史数据，起始时间: {init_time}")
+                log_file, log_pos = init_data(init_time)
+                
+                if log_file and log_pos:
+                    logger.info(f"初始化完成，使用最新binlog位置启动监听: {log_file}:{log_pos}")
+                    update_binlog_config(log_file, log_pos)
+                    start_binlog_listener(log_file, log_pos)
+                else:
+                    logger.error("初始化数据后无法获取binlog位置，使用配置文件中的位置启动监听")
+                    start_binlog_listener(bin_log_file, bin_log_pos)
+            except ImportError as ie:
+                logger.error(f"导入init_data时出错: {str(ie)}")
+                logger.error(f"导入错误详情: {traceback.format_exc()}")
+                return
         except Exception as e:
-            logger.error(f"初始化数据时发生错误: {str(e)}")
+            logger.error(f"初始化过程中出现其他错误: {str(e)}")
+            logger.error(f"错误详情: {traceback.format_exc()}")
             return
     else:
         logger.info(f"使用配置文件中的binlog位置启动监听: {bin_log_file}:{bin_log_pos}")

@@ -24,7 +24,7 @@ tar_password = config.get("target", "password")
 index_name = config.get("target", "index_name")
 
 # 日志配置
-logDir = os.path.expanduser("../log/")
+logDir = os.path.join(project_root, "log")
 if not os.path.exists(logDir):
     os.mkdir(logDir)
 logFile = os.path.join(logDir, "repl.log")
