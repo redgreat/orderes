@@ -60,35 +60,38 @@ ES_SETTINGS = {
 
 def process_table(conn, cursor, processor, table_name, sql_query, order_ids, batch_size=100):
     """
-    通用方法：处理指定表的数据并初始化到ElasticSearch
+    处理单个表数据
     
     Args:
         conn: 数据库连接
         cursor: 数据库游标
         processor: 事件处理器
         table_name: 表名
-        sql_query: SQL查询语句，可以包含 {id_placeholder} 占位符，如无则进行全量查询
-        order_ids: 工单ID列表
-        batch_size: 每批处理的记录数，默认为100
-        
+        sql_query: SQL查询语句
+        order_ids: 订单ID列表
+        batch_size: 批处理大小
+    
     Returns:
-        int: 成功处理的记录数
+        int: 处理的记录数
     """
     processed_count = 0
     
-    # 检查SQL查询是否包含占位符
-    if "{id_placeholder}" in sql_query:
-        # 按工单ID批次处理
-        total_ids = len(order_ids)
-        logger.info(f"开始处理表 {table_name}，共有 {total_ids} 个工单ID")
+    if '{id_placeholder}' in sql_query:
+        # 分批处理
+        total_orders = len(order_ids)
+        logger.info(f"表 {table_name} 开始批量处理，总订单数: {total_orders}")
         
-        for i in range(0, total_ids, batch_size):
-            batch_ids = order_ids[i:i+batch_size]
-            id_placeholder = ", ".join(["%s"] * len(batch_ids))
-            current_sql = sql_query.format(id_placeholder=id_placeholder)
+        batches = [order_ids[i:i + batch_size] for i in range(0, total_orders, batch_size)]
+        batch_num = 1
+        
+        for batch in batches:
+            logger.info(f"表 {table_name} 处理批次 {batch_num}/{len(batches)}")
+            # 构建SQL中的IN查询字符串
+            ids_str = ','.join(['%s'] * len(batch))
+            query = sql_query.format(id_placeholder=ids_str)
             
             try:
-                cursor.execute(current_sql, batch_ids)
+                cursor.execute(query, batch)
                 records = cursor.fetchall()
                 
                 for record in records:
@@ -99,7 +102,35 @@ def process_table(conn, cursor, processor, table_name, sql_query, order_ids, bat
                     }
                     event.update(record)
                     
-                    json_data = json.loads(dict_to_json(event))
+                    # 处理字节类型键
+                    event_processed = {}
+                    for key, value in event.items():
+                        # 处理字节类型的键
+                        if isinstance(key, bytes):
+                            try:
+                                str_key = key.decode('utf-8')
+                            except UnicodeDecodeError:
+                                str_key = key.hex()
+                        else:
+                            str_key = str(key)
+                        
+                        # 处理字典类型的值中的字节类型键
+                        if isinstance(value, dict):
+                            new_value = {}
+                            for k, v in value.items():
+                                if isinstance(k, bytes):
+                                    try:
+                                        new_k = k.decode('utf-8')
+                                    except UnicodeDecodeError:
+                                        new_k = k.hex()
+                                else:
+                                    new_k = str(k)
+                                new_value[new_k] = v
+                            event_processed[str_key] = new_value
+                        else:
+                            event_processed[str_key] = value
+                    
+                    json_data = json.loads(dict_to_json(event_processed))
                     
                     result = processor.handle_event(
                         action="update",
@@ -110,9 +141,12 @@ def process_table(conn, cursor, processor, table_name, sql_query, order_ids, bat
                         processed_count += 1
                         if processed_count % 50 == 0:
                             logger.info(f"表 {table_name} 已处理 {processed_count} 条记录")
-            
+                
+                batch_num += 1
+                
             except Exception as e:
-                logger.error(f"处理表 {table_name} 批次数据时发生错误: {str(e)}")
+                logger.error(f"处理表 {table_name} 批次 {batch_num} 时发生错误: {str(e)}")
+    
     else:
         # 全量查询处理
         logger.info(f"开始处理表 {table_name} 的全量数据")
@@ -130,7 +164,35 @@ def process_table(conn, cursor, processor, table_name, sql_query, order_ids, bat
                 }
                 event.update(record)
                 
-                json_data = json.loads(dict_to_json(event))
+                # 处理字节类型键
+                event_processed = {}
+                for key, value in event.items():
+                    # 处理字节类型的键
+                    if isinstance(key, bytes):
+                        try:
+                            str_key = key.decode('utf-8')
+                        except UnicodeDecodeError:
+                            str_key = key.hex()
+                    else:
+                        str_key = str(key)
+                    
+                    # 处理字典类型的值中的字节类型键
+                    if isinstance(value, dict):
+                        new_value = {}
+                        for k, v in value.items():
+                            if isinstance(k, bytes):
+                                try:
+                                    new_k = k.decode('utf-8')
+                                except UnicodeDecodeError:
+                                    new_k = k.hex()
+                            else:
+                                new_k = str(k)
+                            new_value[new_k] = v
+                        event_processed[str_key] = new_value
+                    else:
+                        event_processed[str_key] = value
+                
+                json_data = json.loads(dict_to_json(event_processed))
                 
                 result = processor.handle_event(
                     action="update",

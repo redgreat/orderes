@@ -157,7 +157,8 @@ def start_binlog_listener(log_file, log_pos):
         only_schemas=src_database,  # 指定只监听某些库（但binlog还是要读取全部）
         only_tables=src_tables,  # 指定监听某些表
         log_file=log_file,  # 指定起始binlog文件
-        log_pos=log_pos  # 指定起始位点
+        log_pos=log_pos,  # 指定起始位点
+        with_table_info=True  # 获取表结构信息，包括列名
     )
 
     # 创建ElasticSearch连接
@@ -206,9 +207,37 @@ def start_binlog_listener(log_file, log_pos):
                         event["action"] = "delete"
                         event.update(row["values"])
                     
-                    json_data = json.loads(dict_to_json(event))
+                    # 确保字典中的字节类型键被转换为字符串
+                    event_processed = {}
+                    for key, value in event.items():
+                        # 处理字节类型的键
+                        if isinstance(key, bytes):
+                            try:
+                                str_key = key.decode('utf-8')
+                            except UnicodeDecodeError:
+                                str_key = key.hex()
+                        else:
+                            str_key = str(key)
+                        
+                        # 处理字典类型的值中的字节类型键
+                        if isinstance(value, dict):
+                            new_value = {}
+                            for k, v in value.items():
+                                if isinstance(k, bytes):
+                                    try:
+                                        new_k = k.decode('utf-8')
+                                    except UnicodeDecodeError:
+                                        new_k = k.hex()
+                                else:
+                                    new_k = str(k)
+                                new_value[new_k] = v
+                            event_processed[str_key] = new_value
+                        else:
+                            event_processed[str_key] = value
+                    
+                    json_data = json.loads(dict_to_json(event_processed))
                     processor.handle_event(
-                        action=event["action"],
+                        action=event_processed["action"],
                         data=json_data
                     )
     except KeyboardInterrupt:

@@ -7,8 +7,8 @@
 python d:\github\orderes\src\etl\init_data.py --start "2025-04-09 00:00:00" --end "2025-04-10 00:00:00"
 
 # git发布标签，打包镜像
-git tag v0.0.7
-git push origin v0.0.7
+git tag v0.0.9
+git push origin v0.0.9
 
 # 删除打包失败的标签
 git tag -d v0.0.1

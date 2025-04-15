@@ -68,9 +68,26 @@ def dict_to_json(res_value):
             return str(obj)
     
     if isinstance(res_value, dict):
+        # 创建新字典，确保所有键都是字符串类型
+        new_dict = {}
         for key, value in res_value.items():
-            res_value[key] = ensure_serializable(value)
-        return json.dumps(res_value, ensure_ascii=False)
+            # 处理键是字节类型的情况
+            if isinstance(key, bytes):
+                try:
+                    str_key = key.decode('utf-8')
+                except UnicodeDecodeError:
+                    str_key = key.hex()
+            else:
+                str_key = str(key)
+            
+            # 处理嵌套字典中的值
+            if isinstance(value, dict):
+                new_dict[str_key] = {k if not isinstance(k, bytes) else (k.decode('utf-8') if k.isalnum() else k.hex()): 
+                                    ensure_serializable(v) for k, v in value.items()}
+            else:
+                new_dict[str_key] = ensure_serializable(value)
+        
+        return json.dumps(new_dict, ensure_ascii=False)
     else:
         return json.dumps(ensure_serializable(res_value), ensure_ascii=False)
 
