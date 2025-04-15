@@ -13,7 +13,7 @@ import pymysql
 import time
 import argparse
 from elasticsearch import Elasticsearch
-from utils import dict_to_str, dict_to_json, process_bu_json_field
+from utils import dict_to_str, dict_to_json
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
