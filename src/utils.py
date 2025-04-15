@@ -43,45 +43,36 @@ def dict_to_str(value):
         return f"'{value}'"
 
 def dict_to_json(res_value):
-    json_record = {}
-    for key, value in res_value.items():
-        # 确保key是字符串类型
-        str_key = key.decode('utf-8') if isinstance(key, bytes) else str(key)
-        if str_key not in ['schema', 'action']:
-            if str_key == 'BussinessJson' or str_key == 'ExtraJson':
-                processed_value = process_bu_json_field(value)
-                json_record[str_key] = processed_value
-            elif str_key.lower().endswith('json'):
-                if isinstance(value, str):
-                    try:
-                        parsed_json = json.loads(value.strip("'").replace("'", '"'))
-                        # 确保JSON对象中的所有key都是字符串
-                        if isinstance(parsed_json, dict):
-                            parsed_json = {str(k): v for k, v in parsed_json.items()}
-                        json_record[str_key] = parsed_json
-                        continue
-                    except json.JSONDecodeError:
-                        pass
-                json_record[str_key] = dict_to_str(value)
-            else:
-                json_record[str_key] = dict_to_str(value)
+    """将字典转换为JSON字符串，处理特殊类型
     
+    Args:
+        res_value: 要转换的值
+        
+    Returns:
+        str: JSON字符串
+    """
     def ensure_serializable(obj):
-        if isinstance(obj, dict):
-            return {str(k): ensure_serializable(v) for k, v in obj.items()}
-        elif isinstance(obj, list):
-            return [ensure_serializable(item) for item in obj]
+        """确保对象可以被JSON序列化"""
+        if isinstance(obj, datetime.datetime):
+            return obj.strftime('%Y-%m-%d %H:%M:%S')
+        elif isinstance(obj, decimal.Decimal):
+            return str(obj)
         elif isinstance(obj, bytes):
             try:
                 return obj.decode('utf-8')
             except UnicodeDecodeError:
                 return obj.hex()
-        else:
+        elif isinstance(obj, (dict, list, str, int, float, bool, type(None))):
             return obj
+        else:
+            return str(obj)
     
-    serializable_record = ensure_serializable(json_record)
-    
-    return json.dumps(serializable_record, ensure_ascii=False, indent=4)
+    if isinstance(res_value, dict):
+        for key, value in res_value.items():
+            res_value[key] = ensure_serializable(value)
+        return json.dumps(res_value, ensure_ascii=False)
+    else:
+        return json.dumps(ensure_serializable(res_value), ensure_ascii=False)
 
 def process_bu_json_field(value):
     """专门处理Bu*Json字段，处理字节字符串表示法和Unicode编码"""
@@ -132,10 +123,13 @@ def process_extra_json(value):
     value = value.strip()
     try:
         if (value.startswith('{') and value.endswith('}')) or (value.startswith('[') and value.endswith(']')):
+            # 对单引号进行处理，确保符合JSON语法
             normalized_json = value.replace("'", '"')
+            # 对非标准的键值对形式进行处理
             normalized_json = normalized_json.replace(':', ': ')
             return json.loads(normalized_json)
     except json.JSONDecodeError:
+        # 如果解析失败，返回原始值
         pass
     
     return value
