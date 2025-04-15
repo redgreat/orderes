@@ -14,6 +14,7 @@ import time
 import argparse
 from elasticsearch import Elasticsearch
 from utils import dict_to_str, dict_to_json
+import threading
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -25,6 +26,7 @@ from pymysqlreplication.row_event import (
 )
 
 from event_processor import EventProcessor
+from monitor import BinlogMonitor
 
 # 数据库连接定义
 config = configparser.ConfigParser()
@@ -166,6 +168,14 @@ def start_binlog_listener(log_file, log_pos):
     # 创建统一的事件处理器
     processor = EventProcessor(es_client)
     
+    # 创建监控实例
+    monitor = BinlogMonitor()
+    
+    # 启动监控线程
+    monitor_thread = threading.Thread(target=monitor.start_monitoring)
+    monitor_thread.daemon = True
+    monitor_thread.start()
+    
     # 记录上次记录binlog位置的时间
     last_log_time = time.time()
     # 记录binlog位置的间隔（秒）
@@ -183,6 +193,9 @@ def start_binlog_listener(log_file, log_pos):
     try:
         with processor:
             for binlog_event in stream:
+                # 更新监控时间
+                monitor.update_event_time()
+                
                 current_time = time.time()
                 if current_time - last_log_time >= log_interval:
                     current_log_file = stream.log_file
