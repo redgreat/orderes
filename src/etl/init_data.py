@@ -42,26 +42,6 @@ tar_port = int(config.get("target", "port"))
 tar_user = config.get("target", "user")
 tar_password = config.get("target", "password")
 
-# 日志级别
-log_level = config.get("log", "level")
-
-# 日志配置
-logDir = os.path.join(project_root, "log")
-if not os.path.exists(logDir):
-    os.makedirs(logDir, exist_ok=True)
-logFile = os.path.join(logDir, "etl_init.log")
-
-logger.add(
-    logFile,
-    colorize=True,
-    rotation="1 days",
-    retention="7 days",
-    format="{time:YYYY-MM-DD at HH:mm:ss} | {level} | {message}",
-    backtrace=True,
-    diagnose=True,
-    level=log_level,
-)
-
 DB_SETTINGS = {
     "host": src_host,
     "port": src_port,
