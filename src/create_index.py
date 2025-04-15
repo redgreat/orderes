@@ -260,7 +260,7 @@ def create_custspecialconfig_index(custspecialconfig_index_name):
                     "format": DATE_FORMAT,
                     "ignore_malformed": True
                 },
-                "Deleted": {"type": "boolean"}
+                "Deleted": {"type": "text"}
             }
         }
     }
