@@ -214,7 +214,7 @@ def start_binlog_listener(log_file, log_pos):
     except KeyboardInterrupt:
         logger.info("收到中断信号，程序退出")
     except Exception as e:
-        logger.error(f"监听binlog过程中发生错误: {str(e)}")
+        logger.error(f"监听binlog过程中发生错误: {str(e)}, event: {event}")
     finally:
         stream.close()
         es_client.close()

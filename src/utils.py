@@ -132,13 +132,10 @@ def process_extra_json(value):
     value = value.strip()
     try:
         if (value.startswith('{') and value.endswith('}')) or (value.startswith('[') and value.endswith(']')):
-            # 对单引号进行处理，确保符合JSON语法
             normalized_json = value.replace("'", '"')
-            # 对非标准的键值对形式进行处理
             normalized_json = normalized_json.replace(':', ': ')
             return json.loads(normalized_json)
     except json.JSONDecodeError:
-        # 如果解析失败，返回原始值
         pass
     
     return value
