@@ -44,6 +44,8 @@ def dict_to_str(value):
 
 def process_bu_json_field(value):
     """专门处理Bu*Json字段，处理字节字符串表示法和Unicode编码"""
+    if isinstance(value, str) and value.startswith('{"SignInSummary":'):
+        return value
     if isinstance(value, bytes):
         try:
             return value.decode('utf-8')

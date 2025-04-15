@@ -157,8 +157,7 @@ def start_binlog_listener(log_file, log_pos):
         only_schemas=src_database,  # 指定只监听某些库（但binlog还是要读取全部）
         only_tables=src_tables,  # 指定监听某些表
         log_file=log_file,  # 指定起始binlog文件
-        log_pos=log_pos,  # 指定起始位点
-        with_table_info=True  # 获取表结构信息，包括列名
+        log_pos=log_pos  # 指定起始位点
     )
 
     # 创建ElasticSearch连接
