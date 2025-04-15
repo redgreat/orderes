@@ -42,45 +42,12 @@ def dict_to_str(value):
     else:
         return f"'{value}'"
 
-def process_bu_json_field(value):
-    """专门处理Bu*Json字段，处理字节字符串表示法和Unicode编码"""
-    if isinstance(value, str) and value.startswith('{"SignInSummary":'):
-        return value
-    if isinstance(value, bytes):
-        try:
-            return value.decode('utf-8')
-        except UnicodeDecodeError:
-            return value.hex()
-    
-    if isinstance(value, str):
-        if value.startswith("b'") and value.endswith("'"):
-            value = value[2:-1]
-        try:
-            parsed_json = json.loads(value.replace("'", '"'))
-            if isinstance(parsed_json, dict):
-                string_keyed_dict = {}
-                for k, v in parsed_json.items():
-                    if isinstance(k, bytes):
-                        k = k.decode('utf-8') if isinstance(k, bytes) else str(k)
-                    string_keyed_dict[k] = v
-                return string_keyed_dict
-            return parsed_json
-        except json.JSONDecodeError:
-            try:
-                return value.encode('latin-1').decode('unicode_escape')
-            except (UnicodeDecodeError, UnicodeEncodeError):
-                pass
-    return value
-
 def dict_to_json(res_value):
     json_record = {}
     for key, value in res_value.items():
         str_key = key.decode('utf-8') if isinstance(key, bytes) else str(key)
         if str_key not in ['schema', 'action']:
-            if str_key == 'BussinessJson' or str_key == 'ExtraJson':
-                processed_value = process_bu_json_field(value)
-                json_record[str_key] = processed_value
-            elif str_key.lower().endswith('json'):
+            if str_key.lower().endswith('json') and str_key != 'BussinessJson':
                 if isinstance(value, str):
                     try:
                         parsed_json = json.loads(value.strip("'").replace("'", '"'))

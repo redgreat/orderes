@@ -50,48 +50,22 @@ class OperatingHandler(BaseProcessor):
                     id=doc_id,
                     body=doc_body
                 )
-                logger.success(f"ES写入OperatingInfo成功: 索引={operating_index_name}, ID={doc_id}")
+                # logger.success(f"ES写入OperatingInfo成功: 索引={operating_index_name}, ID={doc_id}")
                 return True
             elif op_type == "delete":
                 self.es_client.delete(
                     index=operating_index_name,
                     id=doc_id
                 )
-                logger.success(f"ES删除OperatingInfo成功: 索引={operating_index_name}, ID={doc_id}")
+                # logger.success(f"ES删除OperatingInfo成功: 索引={operating_index_name}, ID={doc_id}")
                 return True
             else:
                 logger.warning(f"未支持的ES操作: {op_type}")
                 return False
         except Exception as e:
             if op_type == "delete" and ("document_missing_exception" in str(e) or "404" in str(e)):
-                logger.info(f"ES删除OperatingInfo时文档不存在，视为成功: 索引={operating_index_name}, ID={doc_id}")
+                # logger.success(f"ES删除OperatingInfo时文档不存在，视为成功: 索引={operating_index_name}, ID={doc_id}")
                 return True
             else:
                 logger.error(f"ES {op_type} OperatingInfo失败: 索引={operating_index_name}, ID={doc_id}, {str(e)}")
                 return False
-  
-        """通过工单ID查询相关的所有操作记录"""
-        try:
-            result = self.es_client.search(
-                index=operating_index_name,
-                body={
-                    "query": {
-                        "term": {
-                            "WorkOrderId": work_order_id
-                        }
-                    },
-                    "sort": [
-                        {"InsertTime": {"order": "desc"}}
-                    ],
-                    "size": 100  # 限制返回数量，可根据需要调整
-                }
-            )
-            
-            operations = []
-            for hit in result.get('hits', {}).get('hits', []):
-                operations.append(hit['_source'])
-                
-            return operations
-        except Exception as e:
-            logger.error(f"查询工单操作记录失败: work_order_id={work_order_id}, error={str(e)}")
-            return []

@@ -38,7 +38,7 @@ class BaseProcessor:
                     id=doc_id,
                     body={"doc": doc_body, "doc_as_upsert": True}
                 )
-                logger.success(f"ES索引成功: 索引={index_name}, ID={doc_id}")
+                # logger.success(f"ES索引成功: 索引={index_name}, ID={doc_id}")
                 return True
             else:
                 logger.warning(f"未定义的ES操作: {operation}")

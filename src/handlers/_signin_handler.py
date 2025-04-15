@@ -71,11 +71,11 @@ class SigninHandler(BaseProcessor):
                     id=doc_id,
                     body={"script": script}
                 )
-                logger.success(f"ES更新SigninInfo成功: 索引={index_name}, ID={doc_id}, SigninID={signin_data['Id']}")
+                # logger.success(f"ES更新SigninInfo成功: 索引={index_name}, ID={doc_id}, SigninID={signin_data['Id']}")
                 return True
             except Exception as e:
                 if "document_missing_exception" in str(e) or "404" in str(e):
-                    logger.info(f"ES更新SigninInfo时，原信息不存在，自动转为插入操作: 索引={index_name}, ID={doc_id}")
+                    # logger.success(f"ES更新SigninInfo时，原信息不存在，自动转为插入操作: 索引={index_name}, ID={doc_id}")
                     doc_body = {
                         'SigninInfo': [signin_data]
                     }
@@ -106,11 +106,11 @@ class SigninHandler(BaseProcessor):
                     id=doc_id,
                     body={"script": script}
                 )
-                logger.success(f"ES删除SigninInfo成功: 索引={index_name}, ID={doc_id}, SigninID={str(data.get('Id'))}")
+                # logger.success(f"ES删除SigninInfo成功: 索引={index_name}, ID={doc_id}, SigninID={str(data.get('Id'))}")
                 return True
             except Exception as e:
                 if "document_missing_exception" in str(e) or "404" in str(e):
-                    logger.info(f"ES删除SigninInfo时文档不存在，视为成功: 索引={index_name}, ID={doc_id}, SigninID={str(data.get('Id'))}")
+                    # logger.success(f"ES删除SigninInfo时文档不存在，视为成功: 索引={index_name}, ID={doc_id}, SigninID={str(data.get('Id'))}")
                     return True
                 else:
                     logger.error(f"ES删除SigninInfo失败: 索引={index_name}, ID={doc_id}, {str(e)}")

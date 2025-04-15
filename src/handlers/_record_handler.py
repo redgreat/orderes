@@ -57,11 +57,11 @@ class RecordHandler(BaseProcessor):
                     id=doc_id,
                     body={"script": script}
                 )
-                logger.success(f"ES更新RecordInfo成功: 索引={index_name}, ID={doc_id}, RecordID={record_data['Id']}")
+                # logger.success(f"ES更新RecordInfo成功: 索引={index_name}, ID={doc_id}, RecordID={record_data['Id']}")
                 return True
             except Exception as e:
                 if "document_missing_exception" in str(e) or "404" in str(e):
-                    logger.info(f"ES更新RecordInfo时，原信息不存在，自动转为插入操作: 索引={index_name}, ID={doc_id}")
+                    # logger.success(f"ES更新RecordInfo时，原信息不存在，自动转为插入操作: 索引={index_name}, ID={doc_id}")
                     doc_body = {
                         'RecordInfo': [record_data] 
                     }
@@ -92,11 +92,11 @@ class RecordHandler(BaseProcessor):
                     id=doc_id,
                     body={"script": script}
                 )
-                logger.success(f"ES删除RecordInfo成功: 索引={index_name}, ID={doc_id}, RecordID={str(data.get('Id'))}")
+                # logger.success(f"ES删除RecordInfo成功: 索引={index_name}, ID={doc_id}, RecordID={str(data.get('Id'))}")
                 return True
             except Exception as e:
                 if "document_missing_exception" in str(e) or "404" in str(e):
-                    logger.info(f"ES删除RecordInfo时文档不存在，视为成功: 索引={index_name}, ID={doc_id}, RecordID={str(data.get('Id'))}")
+                    # logger.success(f"ES删除RecordInfo时文档不存在，视为成功: 索引={index_name}, ID={doc_id}, RecordID={str(data.get('Id'))}")
                     return True
                 else:
                     logger.error(f"ES删除RecordInfo失败: 索引={index_name}, ID={doc_id}, {str(e)}")

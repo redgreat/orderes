@@ -63,21 +63,21 @@ class ConfigHandler(BaseProcessor):
                     id=doc_id,
                     body=doc_body
                 )
-                logger.success(f"ES写入CustSpecialConfig成功: 索引={custspecialconfig_index_name}, ID={doc_id}")
+                # logger.success(f"ES写入CustSpecialConfig成功: 索引={custspecialconfig_index_name}, ID={doc_id}")
                 return True
             elif op_type == "delete":
                 self.es_client.delete(
                     index=custspecialconfig_index_name,
                     id=doc_id
                 )
-                logger.success(f"ES删除CustSpecialConfig成功: 索引={custspecialconfig_index_name}, ID={doc_id}")
+                # logger.success(f"ES删除CustSpecialConfig成功: 索引={custspecialconfig_index_name}, ID={doc_id}")
                 return True
             else:
                 logger.warning(f"未支持的ES操作: {op_type}")
                 return False
         except Exception as e:
             if op_type == "delete" and ("document_missing_exception" in str(e) or "404" in str(e)):
-                logger.info(f"ES删除CustSpecialConfig时文档不存在，视为成功: 索引={custspecialconfig_index_name}, ID={doc_id}")
+                # logger.success(f"ES删除CustSpecialConfig时文档不存在，视为成功: 索引={custspecialconfig_index_name}, ID={doc_id}")
                 return True
             else:
                 logger.error(f"ES {op_type} CustSpecialConfig失败: 索引={custspecialconfig_index_name}, ID={doc_id}, {str(e)}")
