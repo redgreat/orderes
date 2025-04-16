@@ -1,5 +1,5 @@
 loguru==0.7.2
 mysql-replication
 pymysql==1.1.0
-elasticsearch==8.11.0
+elasticsearch==7.17.10
 requests==2.31.0
