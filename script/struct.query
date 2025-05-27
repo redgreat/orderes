@@ -1,0 +1,142 @@
+DELETE /test_index
+
+PUT /test_index
+{ "settings": {
+      "index.default_pipeline": "add_timestamp"
+    },
+  "mappings": {
+      "properties": {
+        "createTime": {
+          "type": "date",
+          "format": "yyyy-MM-dd HH:mm:ss",
+          "ignore_malformed": false
+        },
+        "mysqlInsertTime": {
+         "type": "date",
+          "format": "yyyy-MM-dd HH:mm:ss",
+          "ignore_malformed": false
+        },
+        "receiveTime": {
+         "type": "date",
+          "format": "yyyy-MM-dd HH:mm:ss",
+          "ignore_malformed": false
+        },
+        "created_at": {
+         "type": "date",
+          "index": true,
+          "store": true
+        },
+        "name": {
+          "type": "text",
+          "fields": {
+            "keyword": {
+              "type": "keyword",
+              "ignore_above": 256
+            }
+          }
+        },
+        "Name_1": {
+          "type": "text",
+          "fields": {
+            "keyword": {
+              "type": "keyword",
+              "ignore_above": 256
+            }
+          }
+        },
+        "Name_2": {
+          "type": "text",
+          "fields": {
+            "keyword": {
+              "type": "keyword",
+              "ignore_above": 256
+            }
+          }
+        },
+        "Name_3": {
+          "type": "text",
+          "fields": {
+            "keyword": {
+              "type": "keyword",
+              "ignore_above": 256
+            }
+          }
+        },
+        "Name_4": {
+          "type": "text",
+          "fields": {
+            "keyword": {
+              "type": "keyword",
+              "ignore_above": 256
+            }
+          }
+        },
+        "Name_5": {
+          "type": "text",
+          "fields": {
+            "keyword": {
+              "type": "keyword",
+              "ignore_above": 256
+            }
+          }
+        },
+        "Name_6": {
+          "type": "text",
+          "fields": {
+            "keyword": {
+              "type": "keyword",
+              "ignore_above": 256
+            }
+          }
+        },
+        "Name_7": {
+          "type": "text",
+          "fields": {
+            "keyword": {
+              "type": "keyword",
+              "ignore_above": 256
+            }
+          }
+        },
+        "Name_8": {
+          "type": "text",
+          "fields": {
+            "keyword": {
+              "type": "keyword",
+              "ignore_above": 256
+            }
+          }
+        },
+        "Name_9": {
+          "type": "text",
+          "fields": {
+            "keyword": {
+              "type": "keyword",
+              "ignore_above": 256
+            }
+          }
+        },
+        "id": {
+          "type": "text",
+          "fields": {
+            "keyword": {
+              "type": "keyword",
+              "ignore_above": 256
+            }
+          }
+        },
+        "@timestamp": {
+          "type": "date",
+          "format": "strict_date_optional_time||epoch_millis"
+        },
+        "consumeTime": {
+         "type": "date",
+          "format": "yyyy-MM-dd HH:mm:ss",
+          "ignore_malformed": false
+        },
+        "details": {
+          "type": "nested"
+        }
+      }
+  }
+}

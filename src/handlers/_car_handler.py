@@ -53,78 +53,90 @@ class CarHandler(BaseProcessor):
             }
             return self._execute_es("index", doc_id, doc_body)
         elif action == "update":
-            script = {
-                "source": """
-                    if (ctx._source.CarInfo == null) {
-                        ctx._source.CarInfo = new ArrayList();
-                    }
-                    def found = false;
-                    for (int i=0; i<ctx._source.CarInfo.size(); i++) {
-                        if (ctx._source.CarInfo[i].Id == params.car.Id) {
-                            ctx._source.CarInfo.set(i, params.car);
-                            found = true;
-                            break;
+            # 定义更新函数
+            def update_func(source, version):
+                script = {
+                    "source": """
+                        if (ctx._source.CarInfo == null) {
+                            ctx._source.CarInfo = new ArrayList();
                         }
-                    }
-                    if (!found) {
-                        ctx._source.CarInfo.add(params.car);
-                    }
-                """,
-                "lang": "painless",
-                "params": {
-                    "car": car_data
-                }
-            }
-            try:
-                self.es_client.update(
-                    index=index_name,
-                    id=doc_id,
-                    body={"script": script}
-                )
-                # logger.success(f"ES更新CarInfo成功: 索引={index_name}, ID={doc_id}, CarID={car_data['Id']}")
-                return True
-            except Exception as e:
-                if "document_missing_exception" in str(e) or "404" in str(e):
-                    # logger.success(f"ES更新CarInfo时，原信息不存在，自动转为插入操作: 索引={index_name}, ID={doc_id}")
-                    doc_body = {
-                        'CarInfo': [car_data]
-                    }
-                    return self._execute_es("index", doc_id, doc_body)
-                else:
-                    logger.error(f"ES更新CarInfo失败: 索引={index_name}, ID={doc_id}, {str(e)}")
-                    return False
-        elif action == "delete":
-            script = {
-                "source": """
-                    if (ctx._source.CarInfo != null) {
-                        def iterator = ctx._source.CarInfo.iterator();
-                        while (iterator.hasNext()) {
-                            if (iterator.next().Id == params.carId) {
-                                iterator.remove();
+                        def found = false;
+                        for (int i=0; i<ctx._source.CarInfo.size(); i++) {
+                            if (ctx._source.CarInfo[i].Id == params.car.Id) {
+                                ctx._source.CarInfo.set(i, params.car);
+                                found = true;
+                                break;
                             }
                         }
+                        if (!found) {
+                            ctx._source.CarInfo.add(params.car);
+                        }
+                    """,
+                    "lang": "painless",
+                    "params": {
+                        "car": car_data
                     }
-                """,
-                "lang": "painless",
-                "params": {
-                    "carId": str(data.get('Id'))
                 }
-            }
-            try:
-                self.es_client.update(
-                    index=index_name,
-                    id=doc_id,
-                    body={"script": script}
-                )
-                # logger.success(f"ES删除CarInfo成功: 索引={index_name}, ID={doc_id}, CarID={str(data.get('Id'))}")
-                return True
-            except Exception as e:
-                if "document_missing_exception" in str(e) or "404" in str(e):
-                    # logger.success(f"ES删除CarInfo时文档不存在，视为成功: 索引={index_name}, ID={doc_id}, CarID={str(data.get('Id'))}")
+                try:
+                    self.es_client.update(
+                        index=index_name,
+                        id=doc_id,
+                        body={"script": script},
+                        version=version  # 使用版本号进行乐观锁控制
+                    )
+                    # logger.success(f"ES更新CarInfo成功: 索引={index_name}, ID={doc_id}, CarID={car_data['Id']}")
                     return True
-                else:
-                    logger.error(f"ES删除CarInfo失败: 索引={index_name}, ID={doc_id}, {str(e)}")
-                    return False
+                except Exception as e:
+                    raise e
+            
+            # 定义创建函数（文档不存在时）
+            def create_doc_func():
+                doc_body = {
+                    'CarInfo': [car_data]
+                }
+                return self._execute_es("index", doc_id, doc_body)
+            
+            # 使用重试机制更新
+            return self._update_with_retry(doc_id, update_func, create_doc_func)
+            
+        elif action == "delete":
+            # 定义删除函数
+            def delete_func(source, version):
+                script = {
+                    "source": """
+                        if (ctx._source.CarInfo != null) {
+                            def iterator = ctx._source.CarInfo.iterator();
+                            while (iterator.hasNext()) {
+                                if (iterator.next().Id == params.carId) {
+                                    iterator.remove();
+                                }
+                            }
+                        }
+                    """,
+                    "lang": "painless",
+                    "params": {
+                        "carId": str(data.get('Id'))
+                    }
+                }
+                try:
+                    self.es_client.update(
+                        index=index_name,
+                        id=doc_id,
+                        body={"script": script},
+                        version=version  # 使用版本号进行乐观锁控制
+                    )
+                    # logger.success(f"ES删除CarInfo成功: 索引={index_name}, ID={doc_id}, CarID={str(data.get('Id'))}")
+                    return True
+                except Exception as e:
+                    raise e
+            
+            # 定义创建函数（文档不存在时视为成功）
+            def create_doc_func():
+                # logger.success(f"ES删除CarInfo时文档不存在，视为成功: 索引={index_name}, ID={doc_id}, CarID={str(data.get('Id'))}")
+                return True
+            
+            # 使用重试机制删除
+            return self._update_with_retry(doc_id, delete_func, create_doc_func)
         else:
             logger.warning(f"未定义的操作类型: {action}")
             return False
